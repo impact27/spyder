@@ -1200,7 +1200,10 @@ class IPythonConsole(SpyderPluginWidget):
             index = self.tabwidget.currentIndex()
         if index is not None:
             client = self.tabwidget.widget(index)
-
+        
+        #Stop the client
+        client.stop_button_click_handler()
+        
         # Check if related clients or kernels are opened
         # and eventually ask before closing them
         if not self.mainwindow_close and not force:
