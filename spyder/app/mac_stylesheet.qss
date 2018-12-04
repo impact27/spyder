@@ -122,3 +122,11 @@ QDockWidget::close-button, QDockWidget::float-button {
     padding: 0px;
     margin: 2px;
 }
+
+QTabBar::close-button{
+    background-image: url("CloseButton.png");
+}
+
+QTabBar::close-button:hover{
+    background-image: url("CloseButtonHover.png");
+}
