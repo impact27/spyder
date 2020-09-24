@@ -19,6 +19,7 @@ import threading
 
 # Third-party imports
 from ipykernel.ipkernel import IPythonKernel
+from zmq.utils.garbage import gc
 
 # Local imports
 from spyder_kernels.comms.frontendcomm import FrontendComm
@@ -85,6 +86,7 @@ class SpyderKernel(IPythonKernel):
         self._running_namespace = None
         self._pdb_input_line = None
         self.shell.get_local_scope = self.get_local_scope
+        self.faulthandler_handle = None
 
     def get_local_scope(self, stack_depth):
         """Get local scope at given frame depth."""
