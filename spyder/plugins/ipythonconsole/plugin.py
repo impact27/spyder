@@ -277,7 +277,10 @@ class IPythonConsole(SpyderPluginWidget):
         self.tabwidget.set_corner_widgets({Qt.TopRightCorner: widgets})
         if client:
             sw = client.shellwidget
-            self.main.variableexplorer.set_shellwidget_from_id(id(sw))
+            if self.main.variableexplorer is not None:
+                self.main.variableexplorer.set_shellwidget_from_id(id(sw))
+            if self.main.framesexplorer is not None:
+                self.main.framesexplorer.set_shellwidget_from_id(id(sw))
             self.main.plots.set_shellwidget_from_id(id(sw))
             self.main.help.set_shell(sw)
             self.sig_pdb_state.emit(sw.is_debugging(), sw.get_pdb_last_step())
@@ -1292,6 +1295,8 @@ class IPythonConsole(SpyderPluginWidget):
             sw.refresh_namespacebrowser()
             kc.stopped_channels.connect(lambda :
                 self.main.variableexplorer.remove_shellwidget(id(sw)))
+        if self.main.framesexplorer is not None:
+            self.main.framesexplorer.add_shellwidget(sw)
         if self.main.plots is not None:
             self.main.plots.add_shellwidget(sw)
             kc.stopped_channels.connect(lambda :
@@ -1471,12 +1476,17 @@ class IPythonConsole(SpyderPluginWidget):
             self.main.help.set_shell(client.shellwidget)
         if self.main.variableexplorer is not None:
             self.main.variableexplorer.add_shellwidget(client.shellwidget)
+        if self.main.framesexplorer is not None:
+            self.main.framesexplorer.add_shellwidget(client.shellwidget)
         if self.main.plots is not None:
             self.main.plots.add_shellwidget(client.shellwidget)
 
     def process_finished(self, client):
         if self.main.variableexplorer is not None:
             self.main.variableexplorer.remove_shellwidget(
+                id(client.shellwidget))
+        if self.main.framesexplorer is not None:
+            self.main.framesexplorer.remove_shellwidget(
                 id(client.shellwidget))
         if self.main.plots is not None:
             self.main.plots.remove_shellwidget(id(client.shellwidget))

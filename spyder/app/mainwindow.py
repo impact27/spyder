@@ -174,8 +174,8 @@ from spyder.config.base import (get_conf_path, get_module_source_path, STDERR,
 from spyder.config.main import OPEN_FILES_PORT
 from spyder.config.utils import IMPORT_EXT, is_anaconda, is_gtk_desktop
 from spyder import dependencies
-from spyder.py3compat import (is_text_string, to_text_string,
-                              qbytearray_to_str, configparser as cp)
+from spyder.py3compat import (is_text_string, to_text_string, PY2,
+                              PY3, qbytearray_to_str, configparser as cp)
 from spyder.utils import encoding, programs
 from spyder.utils import icon_manager as ima
 from spyder.utils.programs import is_module_installed
@@ -931,6 +931,15 @@ class MainWindow(QMainWindow):
         from spyder.plugins.variableexplorer.plugin import VariableExplorer
         self.variableexplorer = VariableExplorer(self)
         self.variableexplorer.register_plugin()
+
+        # Frames browser
+        if not PY2:
+            self.set_splash(_("Loading frames browser..."))
+            from spyder.plugins.framesexplorer.plugin import FramesExplorer
+            self.framesexplorer = FramesExplorer(self)
+            self.framesexplorer.register_plugin()
+        else:
+            self.framesexplorer = None
 
         # Figure browser
         self.set_splash(_("Loading figure browser..."))
@@ -1722,6 +1731,7 @@ class MainWindow(QMainWindow):
         explorer_project = self.projects
         explorer_file = self.explorer
         explorer_variable = self.variableexplorer
+        frames_explorer = self.framesexplorer
         plots = self.plots
         history = self.historylog
         finder = self.findinfiles
@@ -1750,7 +1760,8 @@ class MainWindow(QMainWindow):
                 # Column 2
                 [[outline]],
                 # Column 3
-                [[help_plugin, explorer_variable, plots,     # Row 0
+                [[help_plugin, explorer_variable,     # Row 0
+                  frames_explorer, plots,
                   helper, explorer_file, finder] + plugins,
                  [console_int, console_ipy, history]]        # Row 1
                 ],
@@ -1773,7 +1784,7 @@ class MainWindow(QMainWindow):
                 [[editor],                            # Row 0
                  [console_ipy, console_int]],         # Row 1
                 # column 1
-                [[explorer_variable, plots, history,  # Row 0
+                [[explorer_variable, frames_explorer, plots, history,  # Row 0
                   outline, finder] + plugins,
                  [explorer_file, explorer_project,    # Row 1
                   help_plugin, helper]]
@@ -1796,7 +1807,7 @@ class MainWindow(QMainWindow):
                 [[editor],
                  [console_ipy, console_int]],
                 # column 2
-                [[explorer_variable, plots, finder] + plugins,
+                [[explorer_variable, frames_explorer, plots, finder] + plugins,
                  [history, help_plugin, helper]]
                 ],
             'width fraction': [10,            # Column 0 width
@@ -1815,7 +1826,8 @@ class MainWindow(QMainWindow):
                 # column 0
                 [[editor],                                  # Row 0
                  [console_ipy, console_int, explorer_file,  # Row 1
-                  explorer_project, help_plugin, explorer_variable, plots,
+                  explorer_project, help_plugin, explorer_variable,
+                  frames_explorer, plots,
                   history, outline, finder, helper] + plugins]
                 ],
             'width fraction': [100],            # Column 0 width
@@ -1831,7 +1843,8 @@ class MainWindow(QMainWindow):
                 [[editor]],                                 # Row 0
                 # column 1
                 [[console_ipy, console_int, explorer_file,  # Row 0
-                  explorer_project, help_plugin, explorer_variable, plots,
+                  explorer_project, help_plugin, explorer_variable,
+                  frames_explorer, plots,
                   history, outline, finder, helper] + plugins]
                 ],
             'width fraction': [55,      # Column 0 width
@@ -3086,6 +3099,7 @@ class MainWindow(QMainWindow):
             for plugin in [self.workingdirectory, self.editor,
                            self.projects, self.ipyconsole,
                            self.historylog, self.help, self.variableexplorer,
+                           self.framesexplorer,
                            self.onlinehelp, self.explorer, self.findinfiles
                            ] + self.thirdparty_plugins:
                 if plugin is not None:
