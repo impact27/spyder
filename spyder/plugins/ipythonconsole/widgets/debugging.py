@@ -13,6 +13,8 @@ from distutils.version import LooseVersion
 import pdb
 import re
 
+from qtpy.QtCore import Qt
+
 from IPython.core.history import HistoryManager
 from IPython import __version__ as ipy_version
 if LooseVersion(ipy_version) < LooseVersion('7.0.0'):
@@ -169,6 +171,9 @@ class DebuggingWidget(DebuggingHistoryWidget):
         self._pdb_input_queue = []  # List of (code, hidden, echo_stack_entry)
         # Temporary flags
         self._tmp_reading = False
+        self._pdb_single_letter_mode = False
+        self._pdb_single_letter_prompt = "pdb_letter_cmd> "
+        self._pdb_regular_prompt = ""
         # super init
         super(DebuggingWidget, self).__init__(*args, **kwargs)
 
@@ -368,6 +373,19 @@ class DebuggingWidget(DebuggingHistoryWidget):
                            password=password)
 
     # --- Private API --------------------------------------------------
+    def _toggle_pdb_single_letter_mode(self):
+        if not self.is_debugging():
+            return
+        if self._pdb_single_letter_mode:
+            self._pdb_single_letter_mode = False
+            prompt = self._pdb_regular_prompt
+        else:
+            self._pdb_single_letter_mode = True
+            prompt = self._pdb_single_letter_prompt
+        if self._reading:
+            self._update_pdb_prompt(prompt)
+            self._show_prompt(prompt)
+
     def _redefine_complete_for_dbg(self, client):
         """Redefine kernel client's complete method to work while debugging."""
 
@@ -386,7 +404,7 @@ class DebuggingWidget(DebuggingHistoryWidget):
 
         client.complete = complete
 
-    def _update_pdb_prompt(self, prompt, password):
+    def _update_pdb_prompt(self, prompt, password=None):
         """Update the prompt that is recognised as a pdb prompt."""
         if prompt == self._pdb_prompt[0]:
             # Nothing to do
@@ -396,6 +414,8 @@ class DebuggingWidget(DebuggingHistoryWidget):
         self._highlighter._ipy_prompt_re = re.compile(
             r'^({})?([ \t]*{}|[ \t]*In \[\d+\]: |[ \t]*\ \ \ \.\.\.+: )'
             .format(re.escape(self.other_output_prefix), re.escape(prompt)))
+        if password is None:
+            password = self._pdb_prompt[1]
         self._pdb_prompt = (prompt, password)
 
     def _is_pdb_complete(self, source):
@@ -459,6 +479,10 @@ class DebuggingWidget(DebuggingHistoryWidget):
             raise RuntimeError(
                 'Request for pdb input during hidden execution.')
 
+        self._pdb_regular_prompt = prompt
+        if self._pdb_single_letter_mode:
+            prompt = self._pdb_single_letter_prompt
+
         self._update_pdb_prompt(prompt, password)
 
         # The prompt should be printed unless:
@@ -511,6 +535,19 @@ class DebuggingWidget(DebuggingHistoryWidget):
     def _event_filter_console_keypress(self, event):
         """Handle Key_Up/Key_Down while debugging."""
         if self.is_waiting_pdb_input():
+            if (self._reading and self._pdb_single_letter_mode and
+                    event.modifiers() in (Qt.NoModifier, Qt.ShiftModifier)):
+                key = event.text()
+                if key:
+                    if key not in (
+                            'a', 'b', 'c', 'd', 'h', 'l',
+                            'n', 'q', 'r', 's', 'u', 'w'):
+                        self._append_plain_text(
+                            "** Error: '" + key + "' is not a pdb command.",
+                            before_prompt=True)
+                    else:
+                        self.pdb_execute('!' + key)
+                    return True
             self._control.current_prompt_pos = self._prompt_pos
             # Pretend this is a regular prompt
             self._tmp_reading = self._reading

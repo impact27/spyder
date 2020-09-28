@@ -3525,5 +3525,28 @@ hello()
             nsb.editor.source_model._data['test']['view'] == '3')
 
 
+@pytest.mark.skipif(PY2, reason="Fails on py2")
+@pytest.mark.slow
+@flaky(max_runs=3)
+@pytest.mark.parametrize(
+    "cmd", ['a', 'b', 'c', 'd', 'h', 'l', 'n', 'q', 'r', 's', 'u', 'w'])
+def test_pdb_shortcuts(main_window, qtbot, cmd):
+    """
+    Test Alt + letter works.
+    """
+    # Wait until the window is fully up
+    shell = main_window.ipyconsole.get_current_shellwidget()
+    control = main_window.ipyconsole.get_focus_widget()
+    qtbot.waitUntil(lambda: shell._prompt_html is not None,
+                    timeout=SHELL_TIMEOUT)
+
+    with qtbot.waitSignal(shell.executed, timeout=SHELL_TIMEOUT):
+        shell.execute("%debug print()")
+
+    with qtbot.waitSignal(shell.executed):
+        qtbot.keyClick(control, cmd, modifier=Qt.AltModifier)
+    assert "!" + cmd in control.toPlainText()
+
+
 if __name__ == "__main__":
     pytest.main()
