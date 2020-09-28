@@ -546,7 +546,7 @@ class DebuggingWidget(DebuggingHistoryWidget):
                             "** Error: '" + key + "' is not a pdb command.",
                             before_prompt=True)
                     else:
-                        self.pdb_execute('!' + key)
+                        self.pdb_execute(key)
                     return True
             self._control.current_prompt_pos = self._prompt_pos
             # Pretend this is a regular prompt
