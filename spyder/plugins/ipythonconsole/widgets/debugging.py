@@ -172,8 +172,7 @@ class DebuggingWidget(DebuggingHistoryWidget):
         # Temporary flags
         self._tmp_reading = False
         self._pdb_single_letter_mode = False
-        self._pdb_single_letter_prompt = "pdb_letter_cmd> "
-        self._pdb_regular_prompt = ""
+        self._pdb_single_letter_prompt = "explore mode: "
         # super init
         super(DebuggingWidget, self).__init__(*args, **kwargs)
 
@@ -203,6 +202,7 @@ class DebuggingWidget(DebuggingHistoryWidget):
         # If debugging starts or stops, clear the input queue.
         self._pdb_input_queue = []
         self._pdb_frame_loc = (None, None)
+        self._pdb_single_letter_mode = False
 
         # start/stop pdb history session
         if self.is_debugging():
@@ -378,13 +378,16 @@ class DebuggingWidget(DebuggingHistoryWidget):
             return
         if self._pdb_single_letter_mode:
             self._pdb_single_letter_mode = False
-            prompt = self._pdb_regular_prompt
+            prompt = self._current_prompt()
         else:
             self._pdb_single_letter_mode = True
             prompt = self._pdb_single_letter_prompt
         if self._reading:
             self._update_pdb_prompt(prompt)
             self._show_prompt(prompt)
+
+    def _current_prompt(self):
+        return "pdb [{}]: ".format(self._pdb_history_input_number + 1)
 
     def _redefine_complete_for_dbg(self, client):
         """Redefine kernel client's complete method to work while debugging."""
@@ -479,9 +482,10 @@ class DebuggingWidget(DebuggingHistoryWidget):
             raise RuntimeError(
                 'Request for pdb input during hidden execution.')
 
-        self._pdb_regular_prompt = prompt
         if self._pdb_single_letter_mode:
             prompt = self._pdb_single_letter_prompt
+        else:
+            prompt = self._current_prompt()
 
         self._update_pdb_prompt(prompt, password)
 
