@@ -538,16 +538,18 @@ class DebuggingWidget(DebuggingHistoryWidget):
             if (self._reading and self._pdb_single_letter_mode and
                     event.modifiers() in (Qt.NoModifier, Qt.ShiftModifier)):
                 key = event.text()
-                if key:
+                if len(key) > 0 and key.isprintable():
                     if key not in (
                             'a', 'b', 'c', 'd', 'h', 'l',
                             'n', 'q', 'r', 's', 'u', 'w'):
                         self._append_plain_text(
-                            "** Error: '" + key + "' is not a pdb command.",
+                            "** Error: '" + key + "' is not a pdb command.\n",
                             before_prompt=True)
                     else:
                         self.pdb_execute(key)
-                    return True
+                elif event.key() in (Qt.Key_Escape, Qt.Key_Return, Qt.Key_Enter):
+                    self._toggle_pdb_single_letter_mode()
+                return True
             self._control.current_prompt_pos = self._prompt_pos
             # Pretend this is a regular prompt
             self._tmp_reading = self._reading
