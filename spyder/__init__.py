@@ -35,9 +35,10 @@ __version__ = '.'.join(map(str, version_info))
 __license__ = __doc__
 __project_url__ = 'https://github.com/spyder-ide/spyder'
 __forum_url__   = 'https://groups.google.com/group/spyderlib'
-__trouble_url__ = __project_url__ + '/wiki/Troubleshooting-Guide-and-FAQ'
+__trouble_url__ = 'https://docs.spyder-ide.org/current/first-steps.html'
 __trouble_url_short__ = 'https://tinyurl.com/SpyderHelp'
 __website_url__ = 'https://www.spyder-ide.org/'
+__docs_url__ = 'https://docs.spyder-ide.org/'
 
 # Dear (Debian, RPM, ...) package makers, please feel free to customize the
 # following path to module's data (images) and translations:

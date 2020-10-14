@@ -283,7 +283,8 @@ class IPythonConsole(SpyderPluginWidget):
                 self.main.framesexplorer.set_shellwidget_from_id(id(sw))
             self.main.plots.set_shellwidget_from_id(id(sw))
             self.main.help.set_shell(sw)
-            self.sig_pdb_state.emit(sw.is_debugging(), sw.get_pdb_last_step())
+            self.sig_pdb_state.emit(
+                sw.is_waiting_pdb_input(), sw.get_pdb_last_step())
         self.update_tabs_text()
         self.sig_update_plugin_title.emit()
 
@@ -525,13 +526,7 @@ class IPythonConsole(SpyderPluginWidget):
                 line = code.strip()
 
             try:
-                if client.shellwidget._executing:
-                    # Don't allow multiple executions when there's
-                    # still an execution taking place
-                    # Fixes spyder-ide/spyder#7293.
-                    pass
-                else:
-                    self.execute_code(line)
+                self.execute_code(line)
             except AttributeError:
                 pass
             self._visibility_changed(True)
@@ -630,11 +625,24 @@ class IPythonConsole(SpyderPluginWidget):
             except AttributeError:
                 pass
 
+    def stop_debugging(self):
+        """Stop debugging"""
+        sw = self.get_current_shellwidget()
+        if sw is not None:
+            if not sw.is_waiting_pdb_input():
+                sw.interrupt_kernel()
+            try:
+                sw.pdb_execute(
+                    "exit",
+                    hidden=False, echo_stack_entry=False, add_history=False)
+            except AttributeError:
+                pass
+
     def get_pdb_state(self):
         """Get debugging state of the current console."""
         sw = self.get_current_shellwidget()
         if sw is not None:
-            return sw.is_debugging()
+            return sw.is_waiting_pdb_input()
         return False
 
     def get_pdb_last_step(self):
@@ -879,7 +887,8 @@ class IPythonConsole(SpyderPluginWidget):
                     cmd = cmd.encode('utf-8')
 
                 try:
-                    proc = programs.run_shell_command(cmd)
+                    # Use clean environment
+                    proc = programs.run_shell_command(cmd, env={})
                     output, _err = proc.communicate()
                 except subprocess.CalledProcessError:
                     output = ''

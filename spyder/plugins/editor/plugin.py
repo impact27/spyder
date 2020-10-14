@@ -247,7 +247,6 @@ class Editor(SpyderPluginWidget):
             # Pass the OutlineExplorer widget to the stacks because they
             # don't need the plugin
             editorstack.set_outlineexplorer(self.outlineexplorer.explorer)
-        self.editorstacks[0].initialize_outlineexplorer()
         self.outlineexplorer.explorer.edit_goto.connect(
                            lambda filenames, goto, word:
                            self.load(filenames=filenames, goto=goto, word=word,
@@ -281,10 +280,16 @@ class Editor(SpyderPluginWidget):
         self.main.completions.register_file(
             language.lower(), filename, codeeditor)
         if status:
-            codeeditor.start_completion_services()
             if language.lower() in self.completion_capabilities:
+                # When this condition is True, it means there's a server
+                # that can provide completion services for this file.
                 codeeditor.register_completion_capabilities(
                     self.completion_capabilities[language.lower()])
+                codeeditor.start_completion_services()
+            elif self.main.completions.is_fallback_only(language.lower()):
+                # This is required to use fallback completions for files
+                # without a language server.
+                codeeditor.start_completion_services()
         else:
             if codeeditor.language == language.lower():
                 logger.debug('Setting {0} completions off'.format(filename))
@@ -313,14 +318,17 @@ class Editor(SpyderPluginWidget):
             editorstack.register_completion_capabilities(
                 capabilities, language)
 
+        self.start_completion_services(language)
+
+    def start_completion_services(self, language):
+        """Notify all editorstacks about LSP server availability."""
+        for editorstack in self.editorstacks:
+            editorstack.start_completion_services(language)
+
     def stop_completion_services(self, language):
         """Notify all editorstacks about LSP server unavailability."""
         for editorstack in self.editorstacks:
-            editorstack.notify_server_down(language)
-
-    def completion_server_ready(self, language):
-        for editorstack in self.editorstacks:
-            editorstack.completion_server_ready(language)
+            editorstack.stop_completion_services(language)
 
     def send_completion_request(self, language, request, params):
         logger.debug("Perform request {0} for: {1}".format(
@@ -586,7 +594,7 @@ class Editor(SpyderPluginWidget):
         self.debug_exit_action = create_action(
             self, _("Stop"),
             icon=ima.icon('stop_debug'), tip=_("Stop debugging"),
-            triggered=lambda: self.debug_command("exit"))
+            triggered=self.stop_debugging)
         self.register_shortcut(self.debug_exit_action, "_", "Debug Exit",
                                add_shortcut_to_tip=True)
 
@@ -2520,6 +2528,10 @@ class Editor(SpyderPluginWidget):
             if index is not None:
                 editorstack.data[index].editor.debugger.toogle_breakpoint(
                         lineno)
+
+    def stop_debugging(self):
+        """Stop debugging"""
+        self.main.ipyconsole.stop_debugging()
 
     def debug_command(self, command):
         """Debug actions"""

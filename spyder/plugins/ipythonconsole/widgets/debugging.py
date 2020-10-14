@@ -205,8 +205,6 @@ class DebuggingWidget(DebuggingHistoryWidget):
         else:
             self.end_history_session()
 
-        self.sig_pdb_state.emit(self.is_debugging(), self.get_pdb_last_step())
-
     def pdb_execute(self, line, hidden=False, echo_stack_entry=True,
                     add_history=True):
         """
@@ -265,6 +263,11 @@ class DebuggingWidget(DebuggingHistoryWidget):
             self._finalize_input_request()
             hidden = True
 
+            # Emit executing
+            self.executing.emit(line)
+            self.sig_pdb_state.emit(
+                False, self.get_pdb_last_step())
+
         if self._pdb_input_ready:
             # Print the string to the console
             self._pdb_input_ready = False
@@ -315,11 +318,12 @@ class DebuggingWidget(DebuggingHistoryWidget):
             fname = pdb_state['step']['fname']
             lineno = pdb_state['step']['lineno']
 
-            # Only step if the location changed
-            if (fname, lineno) != self._pdb_frame_loc:
-                self.sig_pdb_step.emit(fname, lineno)
-
+            last_pdb_loc = self._pdb_frame_loc
             self._pdb_frame_loc = (fname, lineno)
+
+            # Only step if the location changed
+            if (fname, lineno) != last_pdb_loc:
+                self.sig_pdb_step.emit(fname, lineno)
 
         if 'namespace_view' in pdb_state:
             self.set_namespace_view(pdb_state['namespace_view'])
@@ -463,12 +467,10 @@ class DebuggingWidget(DebuggingHistoryWidget):
             else:
                 if self._reading_callback:
                     self._reading_callback()
-
             return
-        if not self._executing:
-            # Only execute if not executing
-            return super(DebuggingWidget, self).execute(
-                source, hidden, interactive)
+
+        return super(DebuggingWidget, self).execute(
+            source, hidden, interactive)
 
     def _pdb_readline_callback(self, line):
         """Callback used when the user inputs text in pdb."""
@@ -500,6 +502,8 @@ class DebuggingWidget(DebuggingHistoryWidget):
             self._highlighter.highlighting_on = True
             # The previous code finished executing
             self.executed.emit(self._pdb_prompt)
+            self.sig_pdb_state.emit(
+                True, self.get_pdb_last_step())
 
         self._pdb_input_ready = True
 
