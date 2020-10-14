@@ -53,7 +53,7 @@ class ShellWidget(NamepaceBrowserWidget, HelpWidget, DebuggingWidget,
     sig_pdb_step = Signal(str, int)
     sig_pdb_state = Signal(bool, dict)
     sig_pdb_stack = Signal(list, int)
-    sig_new_traceback = Signal(object, object, list)
+    sig_show_traceback = Signal(object, object, list)
 
     # For ShellWidget
     focus_changed = Signal()
@@ -112,7 +112,7 @@ class ShellWidget(NamepaceBrowserWidget, HelpWidget, DebuggingWidget,
             'do_where': self.do_where,
             'pdb_input': self.pdb_input,
             'request_interrupt_eventloop': self.request_interrupt_eventloop,
-            'new_traceback': self.new_traceback,
+            'show_traceback': self.show_traceback,
         }
         for request_id in handlers:
             self.spyder_kernel_comm.register_call_handler(

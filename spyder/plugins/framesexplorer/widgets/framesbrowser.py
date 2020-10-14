@@ -90,7 +90,7 @@ class FramesBrowser(QWidget):
         """Bind shellwidget instance to frames browser"""
         self.shellwidget = shellwidget
         shellwidget.sig_pdb_stack.connect(self.refresh_from_pdb)
-        shellwidget.sig_new_traceback.connect(self.refresh_traceback)
+        shellwidget.sig_show_traceback.connect(self.refresh_traceback)
 
     def get_actions(self):
         """Get actions of the widget."""

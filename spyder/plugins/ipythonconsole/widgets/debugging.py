@@ -335,9 +335,9 @@ class DebuggingWidget(DebuggingHistoryWidget):
             self.pdb_curindex = pdb_state['pdb_stack'][1]
             self.sig_pdb_stack.emit(*pdb_state['pdb_stack'])
 
-    def new_traceback(self, etype, error, tb):
+    def show_traceback(self, etype, error, tb):
         """Get new traceback"""
-        self.sig_new_traceback.emit(etype, error, tb)
+        self.sig_show_traceback.emit(etype, error, tb)
 
     def set_pdb_state(self, pdb_state):
         """Set current pdb state."""
