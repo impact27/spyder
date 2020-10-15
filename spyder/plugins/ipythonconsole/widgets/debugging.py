@@ -339,6 +339,16 @@ class DebuggingWidget(DebuggingHistoryWidget):
         """Get new traceback"""
         self.sig_show_traceback.emit(etype, error, tb)
 
+    def _handle_execute_reply(self, msg):
+        """
+        Reimplemented to handle communications between Spyder
+        and the kernel
+        """
+        if msg['content']['status'] == 'ok':
+            # Hide error
+            self.sig_show_traceback.emit(None, None, [])
+        super(DebuggingWidget, self)._handle_execute_reply(msg)
+
     def set_pdb_state(self, pdb_state):
         """Set current pdb state."""
         if pdb_state is not None and isinstance(pdb_state, dict):

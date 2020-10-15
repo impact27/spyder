@@ -220,7 +220,10 @@ class FramesBrowser(QWidget):
 
     def refresh_traceback(self, etype, error, tb):
         """Refresh from exception"""
-        self.set_frames({etype.__name__: tb})
+        if etype is None:
+            self.set_frames(None)
+        else:
+            self.set_frames({etype.__name__: tb})
 
     def set_current_item(self, top_idx, sub_index):
         """Todo"""
@@ -416,6 +419,8 @@ class ResultsBrowser(OneColumnTree):
         self.threads = {}
         self.data = {}
         self.frames = frames
+        if frames is None:
+            return
         for threadId, stack in frames.items():
             parent = ThreadItem(
                 self, threadId, self.text_color)
