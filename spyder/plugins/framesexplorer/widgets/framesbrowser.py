@@ -366,31 +366,6 @@ class ResultsBrowser(OneColumnTree):
         # Signals
         self.header().sectionClicked.connect(self.sort_section)
 
-
-    def setup_common_actions(self):
-        """Setup context menu common actions"""
-        actions = super(ResultsBrowser, self).setup_common_actions()
-        self.get_namespace_action = create_action(
-            self,
-            text=_('Set namespacebrowser here'),
-            icon=ima.icon('ArrowDown'),
-            triggered=self.get_namespace)
-
-        return actions + [self.get_namespace_action]
-
-    def get_namespace(self):
-        """Set namespace to currentr item"""
-        items = self.selectedItems()
-        if not items:
-            return
-        item = items[0]
-        if not isinstance(item, LineFrameItem):
-            return
-        loc = item.locals
-        if loc is None:
-            return
-        self.sig_show_namespace.emit(loc)
-
     def activated(self, item):
         """Double-click event."""
         itemdata = self.data.get(id(self.currentItem()))
