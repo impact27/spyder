@@ -399,6 +399,9 @@ class ResultsBrowser(OneColumnTree):
             self.sig_edit_goto.emit(filename, lineno, '')
             # Index exists if the item is in self.data
             self.sig_activated.emit(self.currentItem().index)
+        item = self.currentItem()
+        if isinstance(item, LineFrameItem) and item.locals is not None:
+            self.sig_show_namespace.emit(item.locals)
 
     @Slot(int)
     def sort_section(self, idx):
