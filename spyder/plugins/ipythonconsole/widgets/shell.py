@@ -121,6 +121,8 @@ class ShellWidget(NamepaceBrowserWidget, HelpWidget, DebuggingWidget,
         self._execute_queue = []
         self.executed.connect(self.pop_execute_queue)
 
+        self._keep_show_traceback = False
+
     def __del__(self):
         """Avoid destroying shutdown_thread."""
         if (self.shutdown_thread is not None
@@ -501,6 +503,23 @@ the sympy module (e.g. plot)
                 reset_namespace, array_inline, array_table, clear_line]
 
     # --- To communicate with the kernel
+    def show_traceback(self, etype, error, tb):
+        """Get new traceback"""
+        # Don't reset when execution finishes
+        self._keep_show_traceback = True
+        self.sig_show_traceback.emit(etype, error, tb)
+
+    def _handle_execute_reply(self, msg):
+        """
+        Reimplemented to handle communications between Spyder
+        and the kernel
+        """
+        if msg['content']['status'] == 'ok' and not self._keep_show_traceback:
+            # Hide error
+            self.sig_show_traceback.emit(None, None, [])
+        self._keep_show_traceback = False
+        super()._handle_execute_reply(msg)
+
     def silent_execute(self, code):
         """Execute code in the kernel without increasing the prompt"""
         try:
