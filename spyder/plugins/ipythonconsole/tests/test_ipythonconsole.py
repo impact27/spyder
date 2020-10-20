@@ -1737,8 +1737,8 @@ def test_stderr_poll(ipyconsole, qtbot):
     qtbot.wait(2000)
     assert "test_test" in ipyconsole.get_focus_widget().toPlainText()
     # Write a second time, makes sure it is not duplicated
-    with open(client.stderr_obj.filename, 'w') as f:
-        f.write("test_test")
+    with open(client.stderr_obj.filename, 'a') as f:
+        f.write("\ntest_test")
     # Wait for the poll
     qtbot.wait(2000)
     assert ipyconsole.get_focus_widget().toPlainText(
