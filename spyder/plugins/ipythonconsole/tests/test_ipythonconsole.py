@@ -1295,7 +1295,7 @@ def test_stderr_file_remains_two_kernels(ipyconsole, qtbot, monkeypatch):
 
     assert len(ipyconsole.get_related_clients(client)) == 1
     other_client = ipyconsole.get_related_clients(client)[0]
-    assert client_obj.filename == other_client.stderr_obj.filename
+    assert client.stderr_obj.filename == other_client.stderr_obj.filename
 
     # In a normal situation file should exist
     monkeypatch.setattr(QMessageBox, "question",
@@ -1732,6 +1732,27 @@ def test_stderr_poll(ipyconsole, qtbot):
                     timeout=SHELL_TIMEOUT)
     client = ipyconsole.get_current_client()
     with open(client.stderr_obj.filename, 'w') as f:
+        f.write("test_test")
+    # Wait for the poll
+    qtbot.wait(2000)
+    assert "test_test" in ipyconsole.get_focus_widget().toPlainText()
+    # Write a second time, makes sure it is not duplicated
+    with open(client.stderr_obj.filename, 'w') as f:
+        f.write("test_test")
+    # Wait for the poll
+    qtbot.wait(2000)
+    assert ipyconsole.get_focus_widget().toPlainText(
+        ).count("test_test") == 2
+
+
+@flaky(max_runs=3)
+def test_stdout_poll(ipyconsole, qtbot):
+    """Test if the content of stdout is printed to the console."""
+    shell = ipyconsole.get_current_shellwidget()
+    qtbot.waitUntil(lambda: shell._prompt_html is not None,
+                    timeout=SHELL_TIMEOUT)
+    client = ipyconsole.get_current_client()
+    with open(client.stdout_obj.filename, 'w') as f:
         f.write("test_test")
     # Wait for the poll
     qtbot.wait(2000)
