@@ -758,8 +758,10 @@ class IPythonConsole(SpyderPluginWidget):
                                  is_pylab=False, is_sympy=False):
         """Connect a client to its kernel"""
         connection_file = client.connection_file
-        stderr_handle = None if self.test_no_stderr else client.stderr_obj.handle
-        stdout_handle = None if self.test_no_stderr else client.stdout_obj.handle
+        stderr_handle = (
+            None if self.test_no_stderr else client.stderr_obj.handle)
+        stdout_handle = (
+            None if self.test_no_stderr else client.stdout_obj.handle)
         km, kc = self.create_kernel_manager_and_kernel_client(
                      connection_file,
                      stderr_handle,
