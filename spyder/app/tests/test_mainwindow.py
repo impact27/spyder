@@ -3670,6 +3670,7 @@ def test_outline_at_startup(main_window, qtbot):
     assert not outline_explorer.explorer.loading_widget.isSpinning()
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(PY2, reason="Not supported for python 2")
 @flaky(max_runs=3)
 @pytest.mark.parametrize(
