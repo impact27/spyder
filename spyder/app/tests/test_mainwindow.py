@@ -3693,6 +3693,7 @@ def test_update_outline(main_window, qtbot, tmpdir):
     CONF.set('editor', 'filenames', [])
 
 
+@pytest.mark.slow
 @flaky(max_runs=3)
 def test_print_multiprocessing(main_window, qtbot, tmpdir):
     """Test the runcell command."""
