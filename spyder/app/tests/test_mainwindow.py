@@ -47,7 +47,7 @@ from qtpy.QtWebEngineWidgets import WEBENGINE
 from spyder import __trouble_url__, __project_url__
 from spyder.app import start
 from spyder.app.mainwindow import MainWindow  # Tests fail without this import
-from spyder.config.base import get_home_dir, get_module_path
+from spyder.config.base import get_home_dir, get_conf_path, get_module_path
 from spyder.config.manager import CONF
 from spyder.widgets.dock import TabFilter
 from spyder.preferences.runconfig import RunConfiguration
@@ -57,9 +57,9 @@ from spyder.plugins.help.tests.test_plugin import check_text
 from spyder.plugins.ipythonconsole.utils.kernelspec import SpyderKernelSpec
 from spyder.plugins.projects.projecttypes import EmptyProject
 from spyder.py3compat import PY2, to_text_string
+from spyder.utils.misc import remove_backslashes
 from spyder.utils.programs import is_module_installed
 from spyder.widgets.dock import DockTitleBar
-from spyder.utils.misc import remove_backslashes
 
 # For testing various Spyder urls
 if not PY2:
@@ -265,12 +265,10 @@ def cleanup(request):
 # =============================================================================
 # ---- Tests
 # =============================================================================
-@flaky(max_runs=3)
 @pytest.mark.slow
 @pytest.mark.first
 @pytest.mark.single_instance
-@pytest.mark.skipif((os.environ.get('CI', None) is None or (PY2
-                     and not sys.platform.startswith('linux'))),
+@pytest.mark.skipif(os.environ.get('CI', None) is None,
                     reason="It's not meant to be run outside of CIs")
 def test_single_instance_and_edit_magic(main_window, qtbot, tmpdir):
     """Test single instance mode and %edit magic."""
@@ -279,15 +277,18 @@ def test_single_instance_and_edit_magic(main_window, qtbot, tmpdir):
     qtbot.waitUntil(lambda: shell._prompt_html is not None, timeout=SHELL_TIMEOUT)
 
     spy_dir = osp.dirname(get_module_path('spyder'))
-    lock_code = ("import sys\n"
-                 "sys.path.append(r'{spy_dir_str}')\n"
-                 "from spyder.config.base import get_conf_path\n"
-                 "from spyder.utils.external import lockfile\n"
-                 "lock_file = get_conf_path('spyder.lock')\n"
-                 "lock = lockfile.FilesystemLock(lock_file)\n"
-                 "lock_created = lock.lock()".format(spy_dir_str=spy_dir))
+    lock_code = (
+        "import sys\n"
+        "sys.path.append(r'{spy_dir_str}')\n"
+        "from spyder.utils.external import lockfile\n"
+        "lock_file = r'{lock_file}'\n"
+        "lock = lockfile.FilesystemLock(lock_file)\n"
+        "lock_created = lock.lock()\n"
+        "print(lock_created)".format(
+            spy_dir_str=spy_dir,
+            lock_file=get_conf_path('spyder.lock'))
+    )
 
-    # Test single instance
     with qtbot.waitSignal(shell.executed, timeout=2000):
         shell.execute(lock_code)
     assert not shell.get_value('lock_created')
@@ -3625,8 +3626,11 @@ def test_tour_message(main_window, qtbot):
 @pytest.mark.use_introspection
 @pytest.mark.preload_project
 @pytest.mark.skipif(os.name == 'nt', reason="Fails on Windows")
-def test_outline_at_startup(main_window, qtbot):
-    """Test that all files in the Outline pane are updated at startup."""
+def test_update_outline(main_window, qtbot, tmpdir):
+    """
+    Test that files in the Outline pane are updated at startup and
+    after switching projects.
+    """
     # Show outline explorer
     outline_explorer = main_window.outlineexplorer
     outline_explorer._toggle_view_action.setChecked(True)
@@ -3668,6 +3672,25 @@ def test_outline_at_startup(main_window, qtbot):
 
     # Assert spinner is not shown
     assert not outline_explorer.explorer.loading_widget.isSpinning()
+
+    # Set one file as session without projects
+    prev_file = tmpdir.join("foo.py")
+    prev_file.write("def zz(x):\n"
+                    "    return x**2\n")
+    CONF.set('editor', 'filenames', [str(prev_file)])
+
+    # Close project to open that file automatically
+    main_window.projects.close_project()
+
+    # Wait a bit for its tree to be filled
+    qtbot.wait(1000)
+
+    # Assert the editor was filled
+    editor = list(treewidget.editor_ids.keys())[0]
+    assert len(treewidget.editor_tree_cache[editor.get_id()]) > 0
+
+    # Remove test file from session
+    CONF.set('editor', 'filenames', [])
 
 
 @pytest.mark.slow

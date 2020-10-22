@@ -109,13 +109,13 @@ from spyder.config.base import running_under_pytest
 # Ignore args if running tests or Spyder will try and fail to parse pytests's.
 if running_under_pytest():
     sys_argv = [sys.argv[0]]
-    CLI_OPTIONS, CLI_ARGS = get_options(sys_argv)
+    cli_options, __ = get_options(sys_argv)
 else:
-    CLI_OPTIONS, CLI_ARGS = get_options()
+    cli_options, __ = get_options()
 
 # **** Set OpenGL implementation to use ****
-if CLI_OPTIONS.opengl_implementation:
-    option = CLI_OPTIONS.opengl_implementation
+if cli_options.opengl_implementation:
+    option = cli_options.opengl_implementation
     set_opengl_implementation(option)
 else:
     if CONF.get('main', 'opengl') != 'automatic':
@@ -145,7 +145,7 @@ if hasattr(MAIN_APP, 'setDesktopFileName'):
 #==============================================================================
 # Create splash screen out of MainWindow to reduce perceived startup time.
 #==============================================================================
-from spyder.config.base import _, get_image_path, DEV, SAFE_MODE
+from spyder.config.base import _, get_image_path, DEV, get_safe_mode
 
 if not running_under_pytest():
     SPLASH = QSplashScreen(QPixmap(get_image_path('splash.svg')))
@@ -231,7 +231,10 @@ DEFAULT_TOUR = 0
 #==============================================================================
 class MainWindow(QMainWindow):
     """Spyder main window"""
-    DOCKOPTIONS = QMainWindow.AllowTabbedDocks|QMainWindow.AllowNestedDocks
+    DOCKOPTIONS = (
+        QMainWindow.AllowTabbedDocks | QMainWindow.AllowNestedDocks |
+        QMainWindow.AnimatedDocks
+    )
     CURSORBLINK_OSDEFAULT = QApplication.cursorFlashTime()
     SPYDER_PATH = get_conf_path('path')
     SPYDER_NOT_ACTIVE_PATH = get_conf_path('not_active_path')
@@ -536,7 +539,7 @@ class MainWindow(QMainWindow):
         # To show the message about starting the tour
         self.sig_setup_finished.connect(self.show_tour_message)
 
-        # Apply preferences
+        # Apply main window settings
         self.apply_settings()
 
         # To set all dockwidgets tabs to be on top (in case we want to do it
@@ -686,6 +689,8 @@ class MainWindow(QMainWindow):
         self.source_menu = self.menuBar().addMenu(_("Sour&ce"))
         self.source_toolbar = self.create_toolbar(_("Source toolbar"),
                                                     "source_toolbar")
+        self.source_menu.aboutToShow.connect(self.update_source_menu)
+
         # Run menu/toolbar
         self.run_menu = self.menuBar().addMenu(_("&Run"))
         self.run_toolbar = self.create_toolbar(_("Run toolbar"),
@@ -1041,7 +1046,9 @@ class MainWindow(QMainWindow):
 
                     dependencies.add(module, name, description,
                                      '', None, kind=dependencies.PLUGIN)
-
+            except TypeError:
+                # Fixes spyder-ide/spyder#13977
+                pass
             except Exception as error:
                 print("%s: %s" % (mod, str(error)), file=STDERR)
                 traceback.print_exc(file=STDERR)
@@ -1267,12 +1274,6 @@ class MainWindow(QMainWindow):
         # Window set-up
         logger.info("Setting up window...")
         self.setup_layout(default=False)
-
-        # Enabling tear off for all menus except help menu
-        if CONF.get('main', 'tear_off_menus'):
-            for child in self.menuBar().children():
-                if isinstance(child, QMenu) and child != self.help_menu:
-                    child.setTearOffEnabled(True)
 
         # Menu about to show
         for child in self.menuBar().children():
@@ -2271,6 +2272,10 @@ class MainWindow(QMainWindow):
                           "be closed automatically.").format(path))
                 self.projects.close_project()
 
+    def update_source_menu(self):
+        """Update source menu options that vary dynamically."""
+        self.editor.refresh_formatter_name()
+
     def free_memory(self):
         """Free memory after event."""
         gc.collect()
@@ -2551,9 +2556,6 @@ class MainWindow(QMainWindow):
         """Add a plugin QDockWidget to the window."""
         if plugin._is_compatible:
             dockwidget, location = plugin._create_dockwidget()
-            if CONF.get('main', 'vertical_dockwidget_titlebars'):
-                dockwidget.setFeatures(dockwidget.features()|
-                                       QDockWidget.DockWidgetVerticalTitleBar)
             self.addDockWidget(location, dockwidget)
             self.widgetlist.append(plugin)
 
@@ -3017,8 +3019,9 @@ class MainWindow(QMainWindow):
 
     #---- Preferences
     def apply_settings(self):
-        """Apply settings changed in 'Preferences' dialog box"""
+        """Apply main window settings."""
         qapp = QApplication.instance()
+
         # Set 'gtk+' as the default theme in Gtk-based desktops
         # Fixes spyder-ide/spyder#2036.
         if is_gtk_desktop() and ('GTK+' in QStyleFactory.keys()):
@@ -3037,15 +3040,14 @@ class MainWindow(QMainWindow):
         default = self.DOCKOPTIONS
         if CONF.get('main', 'vertical_tabs'):
             default = default|QMainWindow.VerticalTabs
-        if CONF.get('main', 'animated_docks'):
-            default = default|QMainWindow.AnimatedDocks
         self.setDockOptions(default)
 
         self.apply_panes_settings()
         self.apply_statusbar_settings()
 
         if CONF.get('main', 'use_custom_cursor_blinking'):
-            qapp.setCursorFlashTime(CONF.get('main', 'custom_cursor_blinking'))
+            qapp.setCursorFlashTime(
+                CONF.get('main', 'custom_cursor_blinking'))
         else:
             qapp.setCursorFlashTime(self.CURSORBLINK_OSDEFAULT)
 
@@ -3053,8 +3055,6 @@ class MainWindow(QMainWindow):
         """Update dockwidgets features settings"""
         for plugin in (self.widgetlist + self.thirdparty_plugins):
             features = plugin.dockwidget.FEATURES
-            if CONF.get('main', 'vertical_dockwidget_titlebars'):
-                features = features | QDockWidget.DockWidgetVerticalTitleBar
             plugin.dockwidget.setFeatures(features)
             plugin._update_margins()
 
@@ -3449,7 +3449,7 @@ class MainWindow(QMainWindow):
         """
         should_show_tour = CONF.get('main', 'show_tour_message')
         if force or (should_show_tour and not running_under_pytest()
-                     and not SAFE_MODE):
+                     and not get_safe_mode()):
             CONF.set('main', 'show_tour_message', False)
             self.tour_dialog = tour.OpenTourDialog(
                 self, lambda: self.show_tour(DEFAULT_TOUR))
@@ -3619,7 +3619,7 @@ def run_spyder(app, options, args):
 #==============================================================================
 # Main
 #==============================================================================
-def main():
+def main(options, args):
     """Main function"""
     # **** For Pytest ****
     if running_under_pytest():
@@ -3628,14 +3628,8 @@ def main():
             set_opengl_implementation(option)
 
         app = initialize()
-        window = run_spyder(app, CLI_OPTIONS, None)
+        window = run_spyder(app, options, None)
         return window
-
-    # **** Collect command line options ****
-    # Note regarding Options:
-    # It's important to collect options before monkey patching sys.exit,
-    # otherwise, argparse won't be able to exit if --help option is passed
-    options, args = (CLI_OPTIONS, CLI_ARGS)
 
     # **** Handle hide_console option ****
     if options.show_console:
@@ -3656,12 +3650,7 @@ def main():
     # **** Create the application ****
     app = initialize()
 
-    # **** Handle other options ****
-    if options.reset_config_files:
-        # <!> Remove all configuration files!
-        reset_config_files()
-        return
-    elif options.reset_to_defaults:
+    if options.reset_to_defaults:
         # Reset Spyder settings to defaults
         CONF.reset_to_defaults()
         return
