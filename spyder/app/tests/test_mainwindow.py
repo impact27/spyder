@@ -3723,7 +3723,7 @@ if __name__ == "__main__":
     run_action = main_window.run_toolbar_actions[0]
     run_button = main_window.run_toolbar.widgetForAction(run_action)
     with qtbot.waitSignal(shell.executed):
-       qtbot.mouseClick(run_button, Qt.LeftButton)
+        qtbot.mouseClick(run_button, Qt.LeftButton)
     qtbot.wait(1000)
 
     assert 'Test stdout' in control.toPlainText()
