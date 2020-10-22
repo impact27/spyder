@@ -43,7 +43,8 @@ class FramesBrowser(QWidget):
     edit_goto = Signal((str, int, str), (str, int, str, bool))
     sig_show_namespace = Signal(dict)
 
-    def __init__(self, parent, color_scheme, options_button=None, plugin_actions=[]):
+    def __init__(self, parent, color_scheme, options_button=None,
+                 plugin_actions=[]):
         QWidget.__init__(self, parent)
 
         self.shellwidget = None
@@ -67,7 +68,8 @@ class FramesBrowser(QWidget):
 
         self.results_browser = ResultsBrowser(self, self.color_scheme)
         self.results_browser.sig_edit_goto.connect(self.edit_goto)
-        self.results_browser.sig_show_namespace.connect(self.sig_show_namespace)
+        self.results_browser.sig_show_namespace.connect(
+            self.sig_show_namespace)
 
         # Setup toolbar layout.
 
@@ -142,7 +144,8 @@ class FramesBrowser(QWidget):
             self.sig_option_changed.emit('capture_locals', state))
         self.capture_locals_action.setChecked(capture_locals)
 
-        self.actions = [self.exclude_internal_action, self.capture_locals_action]
+        self.actions = [self.exclude_internal_action,
+                        self.capture_locals_action]
 
     def setup_options_button(self):
         """Add the cog menu button to the toolbar."""
@@ -251,7 +254,8 @@ class LineFrameItem(QTreeWidgetItem):
             return ("<!-- LineFrameItem -->"
                     "<p>idle</p>")
         _str = ("<!-- LineFrameItem -->" +
-                "<p style=\"color:'{0}';\"><b> ".format(self.color_scheme['normal'][0]) +
+                "<p style=\"color:'{0}';\"><b> ".format(
+                    self.color_scheme['normal'][0]) +
                 "<span style=\"color:'{0}';\">{1}</span>:".format(
                     self.color_scheme['string'][0],
                     html.escape(osp.basename(self.filename))) +
@@ -261,9 +265,10 @@ class LineFrameItem(QTreeWidgetItem):
             _str += " (<span style=\"color:'{0}';\">{1}</span>)".format(
                 self.color_scheme['builtin'][0], html.escape(self.context))
 
-        _str += ("    <span style=\"font-family:{0};".format(self.font.family())
-                 + "color:'{0}';font-size:50%;\"><em>{1}</em></span></p>".format(
-                     self.color_scheme['comment'][0], self.text))
+        _str += (
+            "    <span style=\"font-family:{0};".format(self.font.family())
+            + "color:'{0}';font-size:50%;\"><em>{1}</em></span></p>".format(
+                self.color_scheme['comment'][0], self.text))
         return _str
 
     def __unicode__(self):
@@ -416,7 +421,8 @@ class ResultsBrowser(OneColumnTree):
                     self.data[id(item)] = (frame.filename, frame.lineno)
             else:
                 item = LineFrameItem(
-                    parent, 0, None, '', 0, '', None, self.font, self.color_scheme)
+                    parent, 0, None, '', 0, '', None,
+                    self.font, self.color_scheme)
 
         if 'MainThread' in self.frames and len(self.frames['MainThread']) > 0:
             main_frame = self.frames['MainThread'][-1]
