@@ -261,6 +261,7 @@ class ClientWidget(QWidget, SaveHistoryMixin):
         self.stderr_timer.timeout.connect(self.poll_std_file_change)
         self.stderr_timer.setInterval(1000)
         self.stderr_timer.start()
+        self.shellwidget.executed.connect(self.poll_std_file_change)
 
     def __del__(self):
         """Close threads to avoid segfault"""

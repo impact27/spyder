@@ -3693,5 +3693,41 @@ def test_update_outline(main_window, qtbot, tmpdir):
     CONF.set('editor', 'filenames', [])
 
 
+@flaky(max_runs=3)
+def test_print_multiprocessing(main_window, qtbot, tmpdir):
+    """Test the runcell command."""
+    # Write code with a cell to a file
+    code = """
+import multiprocessing
+import sys
+def test_func():
+    print("Test stdout")
+    print("Test stderr", file=sys.stderr)
+
+if __name__ == "__main__":
+    p = multiprocessing.Process(target=test_func)
+    p.start()
+    p.join()
+"""
+
+    p = tmpdir.join("print-test.py")
+    p.write(code)
+    main_window.editor.load(to_text_string(p))
+    shell = main_window.ipyconsole.get_current_shellwidget()
+    qtbot.waitUntil(lambda: shell._prompt_html is not None,
+                    timeout=SHELL_TIMEOUT)
+    control = main_window.ipyconsole.get_focus_widget()
+
+    # Click the run button
+    run_action = main_window.run_toolbar_actions[0]
+    run_button = main_window.run_toolbar.widgetForAction(run_action)
+    with qtbot.waitSignal(shell.executed):
+       qtbot.mouseClick(run_button, Qt.LeftButton)
+    qtbot.wait(1000)
+
+    assert 'Test stdout' in control.toPlainText()
+    assert 'Test stderr' in control.toPlainText()
+
+
 if __name__ == "__main__":
     pytest.main()
