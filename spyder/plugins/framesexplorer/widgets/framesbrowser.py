@@ -101,13 +101,25 @@ class FramesBrowser(QWidget):
             icon=ima.icon('refresh'),
             triggered=self.refresh)
 
+        self.enable_button = create_toolbutton(
+            self,
+            text=_("Enable Faulthandler"),
+            icon=ima.icon('filesave'),
+            triggered=self.enable_faulthandler)
+
+        self.load_button = create_toolbutton(
+            self,
+            text=_("Load Faulthandler"),
+            icon=ima.icon('fileopen'),
+            triggered=self.load_faulthandler)
+
         CONF.config_shortcut(
             self.refresh,
             context='frames_explorer',
             name='refresh',
             parent=self)
 
-        return [self.refresh_button]
+        return [self.refresh_button, self.enable_button, self.load_button]
 
     def setup_option_actions(self, exclude_internal, capture_locals):
         """Setup the actions to show in the cog menu."""
@@ -162,6 +174,30 @@ class FramesBrowser(QWidget):
                 ).get_current_frames(
                     ignore_internal_threads=self.exclude_internal,
                     capture_locals=self.capture_locals)
+
+    def enable_faulthandler(self):
+        """Enable faulthandler."""
+        if self.isVisible():
+            sw = self.shellwidget
+            if sw.kernel_client is None:
+                return
+            fn = osp.expanduser("~/Desktop/test.fault")
+            sw.call_kernel(
+                interrupt=True
+                ).enable_faulthandler(fn)
+
+    def load_faulthandler(self):
+        """Load faulthandler result."""
+        if self.isVisible():
+            sw = self.shellwidget
+            if sw.kernel_client is None:
+                return
+            fn = osp.expanduser("~/Desktop/test.fault")
+            sw.call_kernel(
+                interrupt=True, callback=self.set_frames
+                ).load_faulthandler(
+                    fn,
+                    ignore_internal_threads=self.exclude_internal)
 
     def set_frames(self, frames):
         """Set current frames"""
