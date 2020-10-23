@@ -33,10 +33,6 @@ from spyder.widgets.onecolumntree import OneColumnTree
 from spyder.config.gui import get_font
 
 
-ON = 'on'
-OFF = 'off'
-
-
 class FramesBrowser(QWidget):
     """Frames browser (global frames explorer widget)"""
     sig_option_changed = Signal(str, object)
@@ -72,7 +68,6 @@ class FramesBrowser(QWidget):
             self.sig_show_namespace)
 
         # Setup toolbar layout.
-
         self.tools_layout = QHBoxLayout()
         toolbar = self.setup_toolbar()
         for widget in toolbar:
@@ -193,7 +188,7 @@ class FramesBrowser(QWidget):
             self.set_frames({etype.__name__: tb})
 
     def set_current_item(self, top_idx, sub_index):
-        """Todo"""
+        """Set current item"""
         if self.results_browser is not None:
             self.results_browser.set_current_item(top_idx, sub_index)
 
@@ -214,6 +209,7 @@ class LineFrameItem(QTreeWidgetItem):
                                  QTreeWidgetItem.Type)
 
     def __repr__(self):
+        """Prints item as html."""
         if self.filename is None:
             return ("<!-- LineFrameItem -->"
                     "<p>idle</p>")
@@ -236,15 +232,19 @@ class LineFrameItem(QTreeWidgetItem):
         return _str
 
     def __unicode__(self):
+        """String representation."""
         return self.__repr__()
 
     def __str__(self):
+        """String representation."""
         return self.__repr__()
 
     def __lt__(self, x):
+        """Smaller for sorting."""
         return self.index < x.index
 
     def __ge__(self, x):
+        """Larger or equals for sorting."""
         return self.index >= x.index
 
 
@@ -262,9 +262,11 @@ class ThreadItem(QTreeWidgetItem):
         self.setToolTip(0, self.name)
 
     def __lt__(self, x):
+        """Smaller for sorting."""
         return self.name < x.name
 
     def __ge__(self, x):
+        """Larger or equals for sorting."""
         return self.name >= x.name
 
 
@@ -275,6 +277,7 @@ class ItemDelegate(QStyledItemDelegate):
         self._margin = None
 
     def paint(self, painter, option, index):
+        """Paint the item."""
         options = QStyleOptionViewItem(option)
         self.initStyleOption(options, index)
 
@@ -303,6 +306,7 @@ class ItemDelegate(QStyledItemDelegate):
         painter.restore()
 
     def sizeHint(self, option, index):
+        """Get a size hint."""
         options = QStyleOptionViewItem(option)
         self.initStyleOption(options, index)
         doc = QTextDocument()
@@ -349,6 +353,7 @@ class ResultsBrowser(OneColumnTree):
 
     @Slot(int)
     def sort_section(self, idx):
+        """Sort section"""
         self.setSortingEnabled(True)
 
     def clicked(self, item):
@@ -356,12 +361,12 @@ class ResultsBrowser(OneColumnTree):
         self.activated(item)
 
     def set_current_item(self, top_idx, sub_index):
-        """Todo"""
+        """Set current item."""
         item = self.topLevelItem(top_idx).child(sub_index)
         self.setCurrentItem(item)
 
     def set_frames(self, frames):
-        """set frames."""
+        """Set frames."""
         self.clear()
         self.threads = {}
         self.data = {}

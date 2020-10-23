@@ -5,8 +5,6 @@
 # (see spyder/__init__.py for details)
 
 """Frames Explorer Plugin."""
-import os.path as osp
-
 # Third party imports
 from qtpy.QtCore import Slot, Signal
 from qtpy.QtWidgets import QStackedWidget, QVBoxLayout
@@ -18,8 +16,6 @@ from spyder.utils import icon_manager as ima
 from spyder.plugins.framesexplorer.widgets.framesbrowser import (
         FramesBrowser)
 from spyder.plugins.framesexplorer.confpage import FramesExplorerConfigPage
-from spyder.py3compat import to_text_string
-from spyder.plugins.ipythonconsole.utils.style import create_qss_style
 
 
 class FramesExplorer(SpyderPluginWidget):
@@ -46,6 +42,7 @@ class FramesExplorer(SpyderPluginWidget):
         self.setLayout(layout)
 
     def register_plugin(self):
+        """Register plugin."""
         super(FramesExplorer, self).register_plugin()
         self.edit_goto.connect(self.main.editor.load)
         self.sig_show_namespace.connect(
@@ -76,6 +73,7 @@ class FramesExplorer(SpyderPluginWidget):
 
     # ----- Stack accesors ----------------------------------------------------
     def set_current_widget(self, fsb):
+        """Set current widget."""
         self.stack.setCurrentWidget(fsb)
         # We update the actions of the options button (cog menu) and we move
         # it to the layout of the current widget.
@@ -83,15 +81,19 @@ class FramesExplorer(SpyderPluginWidget):
         fsb.setup_options_button()
 
     def current_widget(self):
+        """Get current widget."""
         return self.stack.currentWidget()
 
     def count(self):
+        """Count number of widgets."""
         return self.stack.count()
 
     def remove_widget(self, fsb):
+        """Remove a widget."""
         self.stack.removeWidget(fsb)
 
     def add_widget(self, fsb):
+        """Add a widget."""
         self.stack.addWidget(fsb)
 
     # ----- Public API --------------------------------------------------------
@@ -119,6 +121,7 @@ class FramesExplorer(SpyderPluginWidget):
             return fsb
 
     def remove_shellwidget(self, shellwidget_id):
+        """Removes a shellwidget."""
         # If shellwidget_id is not in self.shellwidgets, it simply means
         # that shell was not a Python-based console (it was a terminal)
         if shellwidget_id in self.shellwidgets:
@@ -127,6 +130,7 @@ class FramesExplorer(SpyderPluginWidget):
             fsb.close()
 
     def set_shellwidget_from_id(self, shellwidget_id):
+        """Sets the current shellwidget."""
         if shellwidget_id in self.shellwidgets:
             fsb = self.shellwidgets[shellwidget_id]
             self.set_current_widget(fsb)
