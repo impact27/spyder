@@ -21,6 +21,7 @@ from __future__ import absolute_import
 import codecs
 import os
 import os.path as osp
+import re
 from string import Template
 import time
 
@@ -257,6 +258,7 @@ class ClientWidget(QWidget, SaveHistoryMixin):
         # Poll for stderr changes
         self.stderr_obj = Std_File(self.std_filename('.stderr'))
         self.stdout_obj = Std_File(self.std_filename('.stdout'))
+        self.fault_obj = Std_File(self.std_filename('.fault'))
         self.stderr_timer = QTimer(self)
         self.stderr_timer.timeout.connect(self.poll_std_file_change)
         self.stderr_timer.setInterval(1000)
@@ -295,6 +297,7 @@ class ClientWidget(QWidget, SaveHistoryMixin):
         """Remove stderr_file associated with the client."""
         self.stderr_obj.remove()
         self.stdout_obj.remove()
+        self.fault_obj.remove()
 
     @Slot()
     def poll_std_file_change(self):
@@ -358,6 +361,10 @@ class ClientWidget(QWidget, SaveHistoryMixin):
 
         # To apply style
         self.set_color_scheme(self.shellwidget.syntax_style, reset=False)
+
+        # To display faulthandler
+        self.shellwidget.call_kernel().enable_faulthandler(
+            self.fault_obj.filename)
 
     def add_to_history(self, command):
         """Add command to history"""
@@ -690,6 +697,12 @@ class ClientWidget(QWidget, SaveHistoryMixin):
                 before_prompt=True
             )
         else:
+            fault = self.fault_obj.get_contents()
+            if fault:
+                fault = self.filter_fault(fault)
+                self.shellwidget._append_plain_text(
+                    '\n' + fault, before_prompt=True)
+
             # Reset Pdb state and reopen comm
             sw._pdb_in_loop = False
             sw.spyder_kernel_comm.close()
@@ -705,10 +718,50 @@ class ClientWidget(QWidget, SaveHistoryMixin):
             self.set_color_scheme(sw.syntax_style, reset=reset)
             sw._append_html(_("<br>Restarting kernel...\n<hr><br>"),
                             before_prompt=True)
+            self.shellwidget.call_kernel().enable_faulthandler(
+                self.fault_obj.filename)
 
         self._hide_loading_page()
         self.stop_button.setDisabled(True)
         self.restart_thread = None
+
+    def filter_fault(self, fault):
+        """Get a fault from a previous session."""
+        thread_regex = (r"(Current thread|Thread) "
+                 r"(0x[\da-f]+) \(most recent call first\):"
+                 r"(?:.|\n)+?(?=Current thread|Thread|\Z)")
+        # Keep line for future improvments
+        # files_regex = r"File \"([^\"]+)\", line (\d+) in (\S+)"
+
+        main_re = "Main thread id:\n(0x[0-9a-f]+)"
+        main_id = 0
+        for match in re.finditer(main_re, fault):
+            main_id = int(match.group(1), base=16)
+
+        system_re = "System threads ids:\n(0x[0-9a-f]+(?: 0x[0-9a-f]+)+)"
+        ignore_ids = []
+        start_idx = 0
+        for match in re.finditer(system_re, fault):
+            ignore_ids = [int(i, base=16) for i in match.group(1).split()]
+            start_idx = match.span()[1]
+        text = ""
+        for idx, match in enumerate(re.finditer(thread_regex, fault)):
+            if idx == 0:
+                text += fault[start_idx:match.span()[0]]
+            thread_id = int(match.group(2), base=16)
+            if thread_id != main_id:
+                if thread_id in ignore_ids:
+                    continue
+                if "wurlitzer.py" in match.group(0):
+                    # Wurlitzer threads are launched later
+                    continue
+                text += "\n" + match.group(0) + "\n"
+            else:
+                pattern = (r".*(?:/IPython/core/interactiveshell\.py|"
+                           r"\\IPython\\core\\interactiveshell\.py).*")
+                match_internal = next(re.finditer(pattern, match.group(0)))
+                text += "\n" + match.group(0)[:match_internal.span()[0]] + "\n"
+        return text
 
     @Slot(str)
     def kernel_restarted_message(self, msg):
