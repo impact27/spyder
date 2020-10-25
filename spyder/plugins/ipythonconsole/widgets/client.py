@@ -727,9 +727,10 @@ class ClientWidget(QWidget, SaveHistoryMixin):
 
     def filter_fault(self, fault):
         """Get a fault from a previous session."""
-        thread_regex = (r"(Current thread|Thread) "
-                 r"(0x[\da-f]+) \(most recent call first\):"
-                 r"(?:.|\n)+?(?=Current thread|Thread|\Z)")
+        thread_regex = (
+            r"(Current thread|Thread) "
+            r"(0x[\da-f]+) \(most recent call first\):"
+            r"(?:.|\n)+?(?=Current thread|Thread|\Z)")
         # Keep line for future improvments
         # files_regex = r"File \"([^\"]+)\", line (\d+) in (\S+)"
 
