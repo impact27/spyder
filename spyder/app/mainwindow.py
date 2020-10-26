@@ -1365,6 +1365,7 @@ class MainWindow(QMainWindow):
 
     def show_dpi_change_message(self, dpi):
         """Show message to restart Spyder since the DPI scale changed."""
+        return
         self.screen.logicalDotsPerInchChanged.disconnect(
             self.show_dpi_change_message)
 
