@@ -730,16 +730,16 @@ class ClientWidget(QWidget, SaveHistoryMixin):
         thread_regex = (
             r"(Current thread|Thread) "
             r"(0x[\da-f]+) \(most recent call first\):"
-            r"(?:.|\n)+?(?=Current thread|Thread|\Z)")
+            r"(?:.|\r\n|\r|\n)+?(?=Current thread|Thread|\Z)")
         # Keep line for future improvments
         # files_regex = r"File \"([^\"]+)\", line (\d+) in (\S+)"
 
-        main_re = "Main thread id:\n(0x[0-9a-f]+)"
+        main_re = "Main thread id:(?:\r\n|\r|\n)(0x[0-9a-f]+)"
         main_id = 0
         for match in re.finditer(main_re, fault):
             main_id = int(match.group(1), base=16)
 
-        system_re = "System threads ids:\n(0x[0-9a-f]+(?: 0x[0-9a-f]+)+)"
+        system_re = "System threads ids:(?:\r\n|\r|\n)(0x[0-9a-f]+(?: 0x[0-9a-f]+)+)"
         ignore_ids = []
         start_idx = 0
         for match in re.finditer(system_re, fault):
@@ -758,10 +758,14 @@ class ClientWidget(QWidget, SaveHistoryMixin):
                     continue
                 text += "\n" + match.group(0) + "\n"
             else:
-                pattern = (r".*(?:/IPython/core/interactiveshell\.py|"
-                           r"\\IPython\\core\\interactiveshell\.py).*")
-                match_internal = next(re.finditer(pattern, match.group(0)))
-                text += "\n" + match.group(0)[:match_internal.span()[0]] + "\n"
+                try:
+                    pattern = (r".*(?:/IPython/core/interactiveshell\.py|"
+                               r"\\IPython\\core\\interactiveshell\.py).*")
+                    match_internal = next(re.finditer(pattern, match.group(0)))
+                    end_idx = match_internal.span()[0]
+                except StopIteration:
+                    end_idx = None
+                text += "\nMain thread:\n" + match.group(0)[:end_idx] + "\n"
         return text
 
     @Slot(str)
