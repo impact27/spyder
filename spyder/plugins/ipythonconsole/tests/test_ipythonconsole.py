@@ -2002,5 +2002,33 @@ def test_pdb_code_and_cmd_separation(ipyconsole, qtbot):
     assert "Unknown command 'abba'" in control.toPlainText()
 
 
+@flaky(max_runs=3)
+def test_Qt_error(ipyconsole, qtbot):
+    """Check Qt errors are printed."""
+    shell = ipyconsole.get_current_shellwidget()
+    qtbot.waitUntil(lambda: shell._prompt_html is not None,
+                    timeout=SHELL_TIMEOUT)
+    control = ipyconsole.get_focus_widget()
+
+    with qtbot.waitSignal(shell.executed):
+        shell.execute("%gui qt")
+    with qtbot.waitSignal(shell.executed):
+        shell.execute("""
+from PyQt5.QtCore import QTimer
+
+def fun():
+    print("1 + 1 =", 1 + 1)
+    1/0
+
+timer = QTimer()
+timer.setSingleShot(True)
+timer.start(10)
+timer.timeout.connect(fun)""")
+    qtbot.waitUntil(lambda: "ZeroDivisionError: division by zero" in
+                    control.toPlainText())
+    assert "1 + 1 = 2" in control.toPlainText()
+    assert "ZeroDivisionError" in control.toPlainText()
+
+
 if __name__ == "__main__":
     pytest.main()
