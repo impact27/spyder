@@ -266,7 +266,7 @@ class ClientWidget(QWidget, SaveHistoryMixin):
         self.shellwidget.executed.connect(self.poll_std_file_change)
 
     def __del__(self):
-        """Close threads to avoid segfault"""
+        """Close threads to avoid segfault."""
         if (self.restart_thread is not None
                 and self.restart_thread.isRunning()):
             self.restart_thread.wait()
@@ -288,7 +288,7 @@ class ClientWidget(QWidget, SaveHistoryMixin):
 
     @property
     def kernel_id(self):
-        """Get kernel id"""
+        """Get kernel id."""
         if self.connection_file is not None:
             json_file = osp.basename(self.connection_file)
             return json_file.split('.json')[0]
@@ -301,7 +301,8 @@ class ClientWidget(QWidget, SaveHistoryMixin):
 
     @Slot()
     def poll_std_file_change(self):
-        """Check if the stderr or stdout file just changed"""
+        """Check if the stderr or stdout file just changed."""
+        self.shellwidget.call_kernel().flush_std()
         stderr = self.stderr_obj.poll_file_change()
         if stderr:
             self.shellwidget._append_plain_text(

@@ -756,7 +756,7 @@ class IPythonConsole(SpyderPluginWidget):
 
     def connect_client_to_kernel(self, client, is_cython=False,
                                  is_pylab=False, is_sympy=False):
-        """Connect a client to its kernel"""
+        """Connect a client to its kernel."""
         connection_file = client.connection_file
         stderr_handle = (
             None if self.test_no_stderr else client.stderr_obj.handle)
@@ -1603,7 +1603,7 @@ class IPythonConsole(SpyderPluginWidget):
         if os.name == 'nt':
             tmpdir = get_temp_dir()
             for fname in os.listdir(tmpdir):
-                if osp.splitext(fname)[1] in ('.stderr', '.stdout'):
+                if osp.splitext(fname)[1] in ('.stderr', '.stdout', ".fault"):
                     try:
                         os.remove(osp.join(tmpdir, fname))
                     except Exception:
