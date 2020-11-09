@@ -12,6 +12,7 @@ Spyder kernel for Jupyter.
 
 # Standard library imports
 from distutils.version import LooseVersion
+import re
 import os
 import sys
 import threading
@@ -82,6 +83,7 @@ class SpyderKernel(IPythonKernel):
             'pdb_input_reply': self.pdb_input_reply,
             '_interrupt_eventloop': self._interrupt_eventloop,
             'enable_faulthandler': self.enable_faulthandler,
+            "flush_std": self.flush_std,
             }
         for call_id in handlers:
             self.frontend_comm.register_call_handler(
@@ -130,6 +132,11 @@ class SpyderKernel(IPythonKernel):
             comm_id=comm_id,
             callback=callback,
             timeout=timeout)
+
+    def flush_std(self):
+        """Flush C std."""
+        sys.__stderr__.flush()
+        sys.__stdout__.flush()
 
     def enable_faulthandler(self, fn):
         """
