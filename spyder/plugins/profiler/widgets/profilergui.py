@@ -52,6 +52,7 @@ except KeyError as error:
 logger = logging.getLogger(__name__)
 def is_profiler_installed():
     from spyder.utils.programs import is_module_installed
+    return True
     return is_module_installed('cProfile') and is_module_installed('pstats')
 
 
