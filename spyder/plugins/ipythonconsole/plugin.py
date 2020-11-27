@@ -78,6 +78,9 @@ class IPythonConsole(SpyderPluginWidget):
     focus_changed = Signal()
     edit_goto = Signal((str, int, str), (str, int, str, bool))
     sig_pdb_state = Signal(bool, dict)
+    sig_shellwidget_process_started = Signal(object, bool)
+    sig_shellwidget_process_finished = Signal(object)
+    sig_shellwidget_changed = Signal(object)
 
     # Error messages
     permission_error_msg = _("The directory {} is not writable and it is "
@@ -294,9 +297,7 @@ class IPythonConsole(SpyderPluginWidget):
         self.tabwidget.set_corner_widgets({Qt.TopRightCorner: widgets})
         if client:
             sw = client.shellwidget
-            self.main.variableexplorer.set_shellwidget_from_id(id(sw))
-            self.main.plots.set_shellwidget_from_id(id(sw))
-            self.main.help.set_shell(sw)
+            self.sig_shellwidget_changed.emit(id(sw))
             self.sig_pdb_state.emit(
                 sw.is_waiting_pdb_input(), sw.get_pdb_last_step())
         self.update_tabs_text()
@@ -951,11 +952,6 @@ class IPythonConsole(SpyderPluginWidget):
                 # Syncronice cwd with explorer and cwd widget
                 shellwidget.update_cwd()
 
-        # Connect text widget to Help
-        if self.main.help is not None:
-            control.set_help(self.main.help)
-            control.set_help_enabled(CONF.get('help', 'connect/ipython_console'))
-
         # Connect client to our history log
         if self.main.historylog is not None:
             self.main.historylog.add_history(client.history_filename)
@@ -1267,20 +1263,11 @@ class IPythonConsole(SpyderPluginWidget):
         Connect an external kernel to the Variable Explorer, Help and
         Plots, but only if it is a Spyder kernel.
         """
-        sw = shellwidget
+        self.sig_shellwidget_process_started.emit(shellwidget, True)
         kc = shellwidget.kernel_client
-        if self.main.help is not None:
-            self.main.help.set_shell(sw)
-        if self.main.variableexplorer is not None:
-            self.main.variableexplorer.add_shellwidget(sw)
-            sw.set_namespace_view_settings()
-            sw.refresh_namespacebrowser()
-            kc.stopped_channels.connect(lambda :
-                self.main.variableexplorer.remove_shellwidget(id(sw)))
-        if self.main.plots is not None:
-            self.main.plots.add_shellwidget(sw)
-            kc.stopped_channels.connect(lambda :
-                self.main.plots.remove_shellwidget(id(sw)))
+        kc.stopped_channels.connect(
+            lambda sid=id(shellwidget):
+                self.sig_shellwidget_process_finished.emit(sid))
 
     #------ Public API (for tabs) ---------------------------------------------
     def add_tab(self, widget, name, filename=''):
@@ -1452,19 +1439,12 @@ class IPythonConsole(SpyderPluginWidget):
         return cf
 
     def process_started(self, client):
-        if self.main.help is not None:
-            self.main.help.set_shell(client.shellwidget)
-        if self.main.variableexplorer is not None:
-            self.main.variableexplorer.add_shellwidget(client.shellwidget)
-        if self.main.plots is not None:
-            self.main.plots.add_shellwidget(client.shellwidget)
+        """Process started."""
+        self.sig_shellwidget_process_started.emit(client.shellwidget, False)
 
     def process_finished(self, client):
-        if self.main.variableexplorer is not None:
-            self.main.variableexplorer.remove_shellwidget(
-                id(client.shellwidget))
-        if self.main.plots is not None:
-            self.main.plots.remove_shellwidget(id(client.shellwidget))
+        """Process finished."""
+        self.sig_shellwidget_process_finished.emit(id(client.shellwidget))
 
     def _create_client_for_kernel(self, connection_file, hostname, sshkey,
                                   password):
