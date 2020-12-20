@@ -45,6 +45,9 @@ class MainWindowMock:
             setattr(mock_attr, 'is_supported', lambda: True)
             setattr(self, attr, mock_attr)
 
+    def statusBar(self):
+        return None
+
 
 class ConfigDialogTester(ConfigDialog):
 
