@@ -503,6 +503,8 @@ class IPythonConsole(SpyderPluginWidget):
             self.main.variableexplorer.set_shellwidget_from_id(id(sw))
             self.main.plots.set_shellwidget_from_id(id(sw))
             self.main.help.set_shell(sw)
+            if self.main.framesexplorer:
+                self.main.framesexplorer.set_shellwidget_from_id(id(sw))
             self.sig_pdb_state.emit(
                 sw.is_waiting_pdb_input(), sw.get_pdb_last_step())
         self.update_tabs_text()
@@ -1487,6 +1489,10 @@ class IPythonConsole(SpyderPluginWidget):
             self.main.plots.add_shellwidget(sw)
             kc.stopped_channels.connect(lambda :
                 self.main.plots.remove_shellwidget(id(sw)))
+        if self.main.framesexplorer is not None:
+            self.main.framesexplorer.add_shellwidget(sw)
+            kc.stopped_channels.connect(lambda :
+                self.main.framesexplorer.remove_shellwidget(id(sw)))
 
     #------ Public API (for tabs) ---------------------------------------------
     def add_tab(self, widget, name, filename=''):
@@ -1667,6 +1673,8 @@ class IPythonConsole(SpyderPluginWidget):
             self.main.variableexplorer.add_shellwidget(client.shellwidget)
         if self.main.plots is not None:
             self.main.plots.add_shellwidget(client.shellwidget)
+        if self.main.framesexplorer is not None:
+            self.main.framesexplorer.add_shellwidget(client.shellwidget)
 
     def process_finished(self, client):
         if self.main.variableexplorer is not None:
@@ -1674,6 +1682,8 @@ class IPythonConsole(SpyderPluginWidget):
                 id(client.shellwidget))
         if self.main.plots is not None:
             self.main.plots.remove_shellwidget(id(client.shellwidget))
+        if self.main.framesexplorer is not None:
+            self.main.framesexplorer.remove_shellwidget(id(client.shellwidget))
 
     def _create_client_for_kernel(self, connection_file, hostname, sshkey,
                                   password):
