@@ -463,7 +463,7 @@ class IPythonConsole(SpyderPluginWidget):
         self.mainwindow_close = True
         for client in self.clients:
             client.shutdown()
-            client.remove_stderr_file()
+            client.remove_std_files()
             client.dialog_manager.close_all()
             client.close()
         return True
@@ -626,7 +626,7 @@ class IPythonConsole(SpyderPluginWidget):
             self.set_current_client_working_directory)
         self.tabwidget.currentChanged.connect(self.update_working_directory)
         self.tabwidget.currentChanged.connect(self.check_pdb_state)
-        self._remove_old_stderr_files()
+        self._remove_old_std_files()
 
         # Update kernels if python path is changed
         self.main.sig_pythonpath_changed.connect(self.update_path)
@@ -901,11 +901,8 @@ class IPythonConsole(SpyderPluginWidget):
                               given_name=given_name,
                               ask_before_restart=ask_before_restart,
                               ask_before_closing=ask_before_closing,
-                              css_path=self.css_path)
-
-        # Change stderr_dir if requested
-        if self.test_dir is not None:
-            client.stderr_dir = self.test_dir
+                              css_path=self.css_path,
+                              std_dir=self.test_dir)
 
         self.add_tab(client, name=client.get_name(), filename=filename)
 
@@ -968,12 +965,16 @@ class IPythonConsole(SpyderPluginWidget):
 
     def connect_client_to_kernel(self, client, is_cython=False,
                                  is_pylab=False, is_sympy=False):
-        """Connect a client to its kernel"""
+        """Connect a client to its kernel."""
         connection_file = client.connection_file
-        stderr_handle = None if self.test_no_stderr else client.stderr_handle
+        stderr_handle = (
+            None if self.test_no_stderr else client.stderr_obj.handle)
+        stdout_handle = (
+            None if self.test_no_stderr else client.stdout_obj.handle)
         km, kc = self.create_kernel_manager_and_kernel_client(
                      connection_file,
                      stderr_handle,
+                     stdout_handle,
                      is_cython=is_cython,
                      is_pylab=is_pylab,
                      is_sympy=is_sympy)
@@ -1240,7 +1241,7 @@ class IPythonConsole(SpyderPluginWidget):
         # if there aren't related clients we can remove stderr_file
         related_clients = self.get_related_clients(client)
         if len(related_clients) == 0:
-            client.remove_stderr_file()
+            client.remove_std_files()
 
         client.dialog_manager.close_all()
         client.close()
@@ -1406,6 +1407,7 @@ class IPythonConsole(SpyderPluginWidget):
 
     def create_kernel_manager_and_kernel_client(self, connection_file,
                                                 stderr_handle,
+                                                stdout_handle,
                                                 is_cython=False,
                                                 is_pylab=False,
                                                 is_sympy=False):
@@ -1432,6 +1434,7 @@ class IPythonConsole(SpyderPluginWidget):
         # See spyder-ide/spyder#7302.
         try:
             kernel_manager.start_kernel(stderr=stderr_handle,
+                                        stdout=stdout_handle,
                                         env=kernel_spec.env)
         except Exception:
             error_msg = _("The error is:<br><br>"
@@ -1752,11 +1755,8 @@ class IPythonConsole(SpyderPluginWidget):
                               show_elapsed_time=show_elapsed_time,
                               reset_warning=reset_warning,
                               ask_before_restart=ask_before_restart,
-                              css_path=self.css_path)
-
-        # Change stderr_dir if requested
-        if self.test_dir is not None:
-            client.stderr_dir = self.test_dir
+                              css_path=self.css_path,
+                              std_dir=self.test_dir)
 
         # Create kernel client
         kernel_client = QtKernelClient(connection_file=connection_file)
@@ -1820,17 +1820,17 @@ class IPythonConsole(SpyderPluginWidget):
         # Register client
         self.register_client(client)
 
-    def _remove_old_stderr_files(self):
+    def _remove_old_std_files(self):
         """
-        Remove stderr files left by previous Spyder instances.
+        Remove std files left by previous Spyder instances.
 
         This is only required on Windows because we can't
-        clean up stderr files while Spyder is running on it.
+        clean up std files while Spyder is running on it.
         """
         if os.name == 'nt':
             tmpdir = get_temp_dir()
             for fname in os.listdir(tmpdir):
-                if osp.splitext(fname)[1] == '.stderr':
+                if osp.splitext(fname)[1] in ('.stderr', '.stdout', ".fault"):
                     try:
                         os.remove(osp.join(tmpdir, fname))
                     except Exception:
