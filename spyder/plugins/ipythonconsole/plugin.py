@@ -46,6 +46,7 @@ from spyder.plugins.ipythonconsole.utils.style import create_qss_style
 from spyder.plugins.ipythonconsole.widgets import (
     ClientWidget, ConsoleRestartDialog, KernelConnectionDialog,
     PageControlWidget)
+from spyder.plugins.ipythonconsole.widgets.status import MatplotlibStatus
 from spyder.py3compat import is_string, to_text_string, PY2, PY38_OR_MORE
 from spyder.utils import encoding
 from spyder.utils import icon_manager as ima
@@ -100,6 +101,7 @@ class IPythonConsole(SpyderPluginWidget):
         self.css_path = css_path
         self.run_cell_filename = None
         self.interrupt_action = None
+        self.matplotlib_status = None
 
         # Attrs for testing
         self.testing = testing
@@ -180,6 +182,9 @@ class IPythonConsole(SpyderPluginWidget):
         # See spyder-ide/spyder#11880
         self._init_asyncio_patch()
 
+        status = parent.statusBar()
+        if status:
+            self.matplotlib_status = MatplotlibStatus(self, status)
     #------ SpyderPluginMixin API ---------------------------------------------
     def update_font(self):
         """Update font from Preferences"""
@@ -503,6 +508,8 @@ class IPythonConsole(SpyderPluginWidget):
             self.main.variableexplorer.set_shellwidget_from_id(id(sw))
             self.main.plots.set_shellwidget_from_id(id(sw))
             self.main.help.set_shell(sw)
+            if self.matplotlib_status is not None:
+                self.matplotlib_status.set_shellwidget_from_id(id(sw))
             self.sig_pdb_state.emit(
                 sw.is_waiting_pdb_input(), sw.get_pdb_last_step())
         self.update_tabs_text()
@@ -1139,6 +1146,11 @@ class IPythonConsole(SpyderPluginWidget):
 
         # To handle %edit magic petitions
         shellwidget.custom_edit_requested.connect(self.edit_file)
+        if self.matplotlib_status is not None:
+            shellwidget.sig_matplotlib_gui.connect(
+                lambda gui, sid=id(shellwidget):
+                    self.matplotlib_status.update_matplotlib_gui(
+                        gui, sid))
 
         # Set shell cwd according to preferences
         cwd_path = ''
@@ -1667,6 +1679,8 @@ class IPythonConsole(SpyderPluginWidget):
             self.main.variableexplorer.add_shellwidget(client.shellwidget)
         if self.main.plots is not None:
             self.main.plots.add_shellwidget(client.shellwidget)
+        if self.matplotlib_status is not None:
+            self.matplotlib_status.add_shellwidget(client.shellwidget)
 
     def process_finished(self, client):
         if self.main.variableexplorer is not None:
@@ -1674,6 +1688,8 @@ class IPythonConsole(SpyderPluginWidget):
                 id(client.shellwidget))
         if self.main.plots is not None:
             self.main.plots.remove_shellwidget(id(client.shellwidget))
+        if self.matplotlib_status is not None:
+            self.matplotlib_status.remove_shellwidget(id(client.shellwidget))
 
     def _create_client_for_kernel(self, connection_file, hostname, sshkey,
                                   password):
@@ -1790,6 +1806,12 @@ class IPythonConsole(SpyderPluginWidget):
             shellwidget.sig_is_spykernel.connect(
                 self.connect_external_kernel)
             shellwidget.check_spyder_kernel()
+            # Here we must add matplotlib_status for ipython consoles
+            if self.matplotlib_status is not None:
+                self.matplotlib_status.add_shellwidget(
+                    shellwidget, external=True)
+                kernel_client.stopped_channels.connect(lambda :
+                    self.matplotlib_status.remove_shellwidget(id(shellwidget)))
 
         # Set elapsed time, if possible
         if not external_kernel:
