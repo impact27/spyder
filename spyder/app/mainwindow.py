@@ -837,6 +837,7 @@ class MainWindow(QMainWindow):
         from spyder.plugins.editor.plugin import Editor
         self.editor = Editor(self)
         self.editor.register_plugin()
+        self.workingdirectory.edit_goto.connect(self.editor.load)
 
         # Populating file menu entries
         quit_action = create_action(self, _("&Quit"),

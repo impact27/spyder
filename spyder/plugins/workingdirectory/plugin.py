@@ -14,11 +14,12 @@
 # Standard library imports
 import os
 import os.path as osp
+import re
 
 # Third party imports
 from qtpy.compat import getexistingdirectory
 from qtpy.QtCore import QSize, Signal, Slot
-from qtpy.QtWidgets import QToolBar
+from qtpy.QtWidgets import QToolBar, QComboBox
 
 # Local imports
 from spyder.config.base import _, get_conf_path, get_home_dir
@@ -30,6 +31,57 @@ from spyder.utils import icon_manager as ima
 from spyder.utils.qthelpers import create_action
 from spyder.widgets.comboboxes import PathComboBox
 from spyder.plugins.workingdirectory.confpage import WorkingDirectoryConfigPage
+
+
+class WorkingDirectoryComboBox(PathComboBox):
+    """Working directory combo box."""
+
+    edit_goto = Signal(str, int, str)
+
+    def focusOutEvent(self, event):
+        """Handle focus out event restoring the last valid selected path."""
+        if self.add_current_text_if_valid():
+            self.selected()
+            self.hide_completer()
+        hide_status = getattr(self.lineEdit(), 'hide_status_icon', None)
+        if hide_status:
+            hide_status()
+        QComboBox.focusOutEvent(self, event)
+
+    # --- Own methods
+    def valid_text(self):
+        """Get valid version of current text."""
+        directory = self.currentText()
+        file = None
+        line_number = None
+        if directory:
+            match = re.fullmatch(r"(?:(\d+):)?(.+)", directory[::-1])
+            if match:
+                line_number, directory = match.groups()
+                if line_number:
+                    line_number = int(line_number[::-1])
+                directory = directory[::-1]
+            directory = osp.abspath(to_text_string(directory))
+            # It the directory is a file, open containing directory
+            if os.path.isfile(directory):
+                file = os.path.basename(directory)
+                directory = os.path.dirname(directory)
+
+            # If the directory name is malformed, open parent directory
+            if not os.path.isdir(directory):
+                directory = os.path.dirname(directory)
+            if self.is_valid(directory):
+                return directory, file, line_number
+        return self.selected_text, file, line_number
+
+    def add_current_text_if_valid(self):
+        """Add current text to combo box history if valid."""
+        directory, file, line_number = self.valid_text()
+        if file:
+            self.edit_goto.emit(file, line_number, "")
+        if directory != self.selected_text:
+            self.add_text(directory)
+            return True
 
 
 class WorkingDirectory(SpyderPluginWidget):
@@ -46,14 +98,15 @@ class WorkingDirectory(SpyderPluginWidget):
     set_explorer_cwd = Signal(str)
     refresh_findinfiles = Signal()
     set_current_console_wd = Signal(str)
-    
+    edit_goto = Signal(str, int, str)
+
     def __init__(self, parent, workdir=None, **kwds):
         SpyderPluginWidget.__init__(self, parent)
         self.hide()
 
         self.toolbar = QToolBar(self)
         self.options_button.hide()
-        
+
         self.toolbar.setWindowTitle(self.get_plugin_title())
         # Used to save Window state
         self.toolbar.setObjectName(self.get_plugin_title())
@@ -75,10 +128,11 @@ class WorkingDirectory(SpyderPluginWidget):
         # Enable/disable previous/next actions
         self.set_previous_enabled.connect(self.previous_action.setEnabled)
         self.set_next_enabled.connect(self.next_action.setEnabled)
-        
+
         # Path combo box
         adjust = self.get_option('working_dir_adjusttocontents')
-        self.pathedit = PathComboBox(self, adjust_to_contents=adjust)
+        self.pathedit = WorkingDirectoryComboBox(
+            self, adjust_to_contents=adjust)
         self.pathedit.setToolTip(_("This is the working directory for newly\n"
                                "opened consoles (Python/IPython consoles and\n"
                                "terminals), for the file explorer, for the\n"
@@ -87,6 +141,7 @@ class WorkingDirectory(SpyderPluginWidget):
         self.pathedit.open_dir.connect(self.chdir)
         self.pathedit.activated[str].connect(self.chdir)
         self.pathedit.setMaxCount(self.get_option('working_dir_history'))
+        self.pathedit.edit_goto.connect(self.edit_goto)
         wdhistory = self.load_wdhistory(workdir)
         if workdir is None:
             workdir = self.get_workdir()
@@ -95,7 +150,7 @@ class WorkingDirectory(SpyderPluginWidget):
         self.pathedit.selected_text = self.pathedit.currentText()
         self.refresh_plugin()
         self.toolbar.addWidget(self.pathedit)
-        
+
         # Browse action
         browse_action = create_action(self, "browse", None,
                                       ima.icon('DirOpenIcon'),
@@ -124,11 +179,11 @@ class WorkingDirectory(SpyderPluginWidget):
             workdir = get_home_dir()
         return workdir
 
-    #------ SpyderPluginWidget API ---------------------------------------------    
+    #------ SpyderPluginWidget API ---------------------------------------------
     def get_plugin_title(self):
         """Return widget title"""
         return _('Current working directory')
-    
+
     def get_plugin_icon(self):
         """Return widget icon"""
         return ima.icon('DirOpenIcon')
@@ -137,10 +192,10 @@ class WorkingDirectory(SpyderPluginWidget):
         """Register plugin in Spyder's main window"""
         self.redirect_stdio.connect(self.main.redirect_internalshell_stdio)
         self.main.console.shell.refresh.connect(self.refresh_plugin)
-        iconsize = 24 
+        iconsize = 24
         self.toolbar.setIconSize(QSize(iconsize, iconsize))
         self.main.addToolBar(self.toolbar)
-        
+
     def refresh_plugin(self):
         """Refresh widget"""
         curdir = getcwd_or_home()
@@ -171,7 +226,7 @@ class WorkingDirectory(SpyderPluginWidget):
             encoding.writelines(text, self.LOG_PATH)
         except EnvironmentError:
             pass
-    
+
     @Slot()
     def select_directory(self):
         """Select directory"""
@@ -181,19 +236,19 @@ class WorkingDirectory(SpyderPluginWidget):
         if directory:
             self.chdir(directory)
         self.redirect_stdio.emit(True)
-    
+
     @Slot()
     def previous_directory(self):
         """Back to previous directory"""
         self.histindex -= 1
         self.chdir(directory='', browsing_history=True)
-    
+
     @Slot()
     def next_directory(self):
         """Return to next directory"""
         self.histindex += 1
         self.chdir(directory='', browsing_history=True)
-    
+
     @Slot()
     def parent_directory(self):
         """Change working directory to parent directory"""
@@ -221,7 +276,7 @@ class WorkingDirectory(SpyderPluginWidget):
                 self.history = self.history[:self.histindex+1]
             self.history.append(directory)
             self.histindex = len(self.history)-1
-        
+
         # Changing working directory
         try:
             os.chdir(directory)
