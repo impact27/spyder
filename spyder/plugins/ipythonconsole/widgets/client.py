@@ -173,6 +173,7 @@ class ClientWidget(QWidget, SaveHistoryMixin):
                  show_elapsed_time=False,
                  reset_warning=True,
                  ask_before_restart=True,
+                 ask_before_closing=False,
                  css_path=None,
                  std_dir=None):
         super(ClientWidget, self).__init__(plugin)
@@ -190,6 +191,7 @@ class ClientWidget(QWidget, SaveHistoryMixin):
         self.show_elapsed_time = show_elapsed_time
         self.reset_warning = reset_warning
         self.ask_before_restart = ask_before_restart
+        self.ask_before_closing = ask_before_closing
 
         # --- Other attrs
         self.options_button = options_button
@@ -201,6 +203,7 @@ class ClientWidget(QWidget, SaveHistoryMixin):
         self.std_dir = std_dir
         self.is_error_shown = False
         self.restart_thread = None
+        self.give_focus = True
 
         if css_path is None:
             self.css_path = CSS_PATH
@@ -314,11 +317,10 @@ class ClientWidget(QWidget, SaveHistoryMixin):
 
     def configure_shellwidget(self, give_focus=True):
         """Configure shellwidget after kernel is connected."""
+        self.give_focus = give_focus
+
         # Make sure the kernel sends the comm config over
         self.shellwidget.call_kernel()._send_comm_config()
-
-        if give_focus:
-            self.get_control().setFocus()
 
         # Set exit callback
         self.shellwidget.set_exit_callback()
@@ -398,6 +400,13 @@ class ClientWidget(QWidget, SaveHistoryMixin):
         self.shellwidget.sig_remote_execute.disconnect(
             self._when_prompt_is_ready)
 
+        # It's necessary to do this at this point to avoid giving
+        # focus to _control at startup.
+        self._connect_control_signals()
+
+        if self.give_focus:
+            self.shellwidget._control.setFocus()
+
     def enable_stop_button(self):
         self.stop_button.setEnabled(True)
 
@@ -470,7 +479,12 @@ class ClientWidget(QWidget, SaveHistoryMixin):
 
     def get_control(self):
         """Return the text widget (or similar) to give focus to"""
-        return self.shellwidget._control
+        # page_control is the widget used for paging
+        page_control = self.shellwidget._page_control
+        if page_control and page_control.isVisible():
+            return page_control
+        else:
+            return self.shellwidget._control
 
     def get_kernel(self):
         """Get kernel associated with this client"""
@@ -943,3 +957,16 @@ class ClientWidget(QWidget, SaveHistoryMixin):
             return True
         else:
             return False
+
+    def _connect_control_signals(self):
+        """Connect signals of control widgets."""
+        control = self.shellwidget._control
+        page_control = self.shellwidget._page_control
+
+        control.focus_changed.connect(
+            lambda: self.plugin.focus_changed.emit())
+        page_control.focus_changed.connect(
+            lambda: self.plugin.focus_changed.emit())
+        control.visibility_changed.connect(self.plugin.refresh_plugin)
+        page_control.visibility_changed.connect(self.plugin.refresh_plugin)
+        page_control.show_find_widget.connect(self.plugin.find_widget.show)

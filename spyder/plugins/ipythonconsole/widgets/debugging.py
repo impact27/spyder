@@ -9,16 +9,12 @@ Widget that handles communications between a console in debugging
 mode and Spyder
 """
 
-from distutils.version import LooseVersion
 import pdb
 import re
 
 from IPython.core.history import HistoryManager
 from IPython import __version__ as ipy_version
-if LooseVersion(ipy_version) < LooseVersion('7.0.0'):
-    from IPython.core.inputsplitter import IPythonInputSplitter
-else:
-    from IPython.core.inputtransformer2 import TransformerManager
+from IPython.core.inputtransformer2 import TransformerManager
 from IPython.lib.lexers import IPythonLexer, IPython3Lexer
 from pygments.lexer import bygroups
 from pygments.token import Keyword, Operator, Text
@@ -26,7 +22,7 @@ from pygments.util import ClassNotFound
 from qtconsole.rich_jupyter_widget import RichJupyterWidget
 from qtpy.QtCore import Qt
 
-from spyder.config.base import get_conf_path
+from spyder.config.base import _, get_conf_path
 from spyder.config.manager import CONF
 
 
@@ -481,10 +477,7 @@ class DebuggingWidget(DebuggingHistoryWidget):
         """
         if source and source[0] == '!':
             source = source[1:]
-        if LooseVersion(ipy_version) < LooseVersion('7.0.0'):
-            tm = IPythonInputSplitter()
-        else:
-            tm = TransformerManager()
+        tm = TransformerManager()
         complete, indent = tm.check_complete(source)
         if indent is not None:
             indent = indent * ' '
@@ -559,8 +552,8 @@ class DebuggingWidget(DebuggingHistoryWidget):
             self._highlighter.highlighting_on = True
             # The previous code finished executing
             self.executed.emit(self._pdb_prompt)
-            self.sig_pdb_state.emit(
-                True, self.get_pdb_last_step())
+            self.sig_pdb_prompt_ready.emit()
+            self.sig_pdb_state.emit(True, self.get_pdb_last_step())
 
         self._pdb_input_ready = True
 

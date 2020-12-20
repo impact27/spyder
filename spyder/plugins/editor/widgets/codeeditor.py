@@ -30,8 +30,8 @@ import textwrap
 import time
 
 # Third party imports
-from three_merge import merge
 from diff_match_patch import diff_match_patch
+from IPython.core.inputtransformer2 import TransformerManager
 from qtpy.compat import to_qvariant
 from qtpy.QtCore import (QEvent, QPoint, QRegExp, Qt, QTimer, QThread, QUrl,
                          Signal, Slot)
@@ -46,6 +46,7 @@ from qtpy.QtWidgets import (QApplication, QDialog, QDialogButtonBox,
                             QLineEdit, QMenu, QMessageBox, QSplitter,
                             QToolTip, QVBoxLayout, QScrollBar)
 from spyder_kernels.utils.dochelpers import getobj
+from three_merge import merge
 
 # %% This line is for cell execution testing
 
@@ -91,6 +92,7 @@ from spyder.utils.qthelpers import (add_actions, create_action, file_uri,
 from spyder.utils.vcs import get_git_remotes, remote_to_url
 from spyder.utils.qstringhelpers import qstring_length
 from spyder.widgets.helperwidgets import MessageCheckBox
+
 
 try:
     import nbformat as nbformat
@@ -210,12 +212,35 @@ def get_file_language(filename, text=None):
     return language
 
 
+def count_leading_empty_lines(cell):
+    """Count the number of leading empty cells."""
+    lines = cell.splitlines(keepends=True)
+    if not lines:
+        return 0
+    for i, line in enumerate(lines):
+        if line and not line.isspace():
+            return i
+    return len(lines)
+
+
+def ipython_to_python(code):
+    """Transform IPython code to python code."""
+    tm = TransformerManager()
+    number_empty_lines = count_leading_empty_lines(code)
+    try:
+        code = tm.transform_cell(code)
+    except SyntaxError:
+        return code
+    return '\n' * number_empty_lines + code
+
+
 @class_register
 class CodeEditor(TextEditBaseWidget):
     """Source Code Editor Widget based exclusively on Qt"""
 
     LANGUAGES = {
         'Python': (sh.PythonSH, '#', PythonCFM),
+        'IPython': (sh.IPythonSH, '#', PythonCFM),
         'Cython': (sh.CythonSH, '#', PythonCFM),
         'Fortran77': (sh.Fortran77SH, 'c', None),
         'Fortran': (sh.FortranSH, '!', None),
@@ -233,7 +258,9 @@ class CodeEditor(TextEditBaseWidget):
         'None': (sh.TextSH, '', None),
     }
 
-    TAB_ALWAYS_INDENTS = ('py', 'pyw', 'python', 'c', 'cpp', 'cl', 'h')
+    TAB_ALWAYS_INDENTS = (
+        'py', 'pyw', 'python', 'ipy', 'c', 'cpp', 'cl', 'h', 'pyt', 'pyi'
+    )
 
     # Custom signal to be emitted upon completion of the editor's paintEvent
     painted = Signal(QPaintEvent)
@@ -1167,11 +1194,15 @@ class CodeEditor(TextEditBaseWidget):
     def document_did_open(self):
         """Send textDocument/didOpen request to the server."""
         cursor = self.textCursor()
+        text = self.toPlainText()
+        if self.is_ipython():
+            # Send valid python text to LSP as it doesn't support IPython
+            text = ipython_to_python(text)
         params = {
             'file': self.filename,
             'language': self.language,
             'version': self.text_version,
-            'text': self.toPlainText(),
+            'text': text,
             'codeeditor': self,
             'offset': cursor.position(),
             'selection_start': cursor.selectionStart(),
@@ -1213,6 +1244,9 @@ class CodeEditor(TextEditBaseWidget):
         """Send textDocument/didChange request to the server."""
         self.text_version += 1
         text = self.toPlainText()
+        if self.is_ipython():
+            # Send valid python text to LSP
+            text = ipython_to_python(text)
         self.patch = self.differ.patch_make(self.previous_text, text)
         self.previous_text = text
         cursor = self.textCursor()
@@ -1742,13 +1776,21 @@ class CodeEditor(TextEditBaseWidget):
         """Handle folding response."""
         try:
             ranges = response['params']
+            if ranges is None:
+                return
+
             folding_panel = self.panels.get(FoldingPanel)
 
             # Update folding
             text = self.toPlainText()
             self.text_diff = (self.differ.diff_main(self.previous_text, text),
                               self.previous_text)
-            folding_panel.update_folding(ranges)
+            extended_ranges = []
+            for start, end in ranges:
+                text_region = self.get_text_region(start, end)
+                extended_ranges.append((start, end, text_region))
+
+            folding_panel.update_folding(extended_ranges)
 
             # Update indent guides, which depend on folding
             if self.indent_guides._enabled and len(self.patch) > 0:
@@ -1946,7 +1988,10 @@ class CodeEditor(TextEditBaseWidget):
                 if language.lower() in value:
                     self.supported_language = True
                     sh_class, comment_string, CFMatch = self.LANGUAGES[key]
-                    self.language = key
+                    if key == 'IPython':
+                        self.language = 'Python'
+                    else:
+                        self.language = key
                     self.comment_string = comment_string
                     if key in CELL_LANGUAGES:
                         self.supported_cell_language = True
@@ -2014,6 +2059,12 @@ class CodeEditor(TextEditBaseWidget):
     def is_python(self):
         return self.highlighter_class is sh.PythonSH
 
+    def is_ipython(self):
+        return self.highlighter_class is sh.IPythonSH
+
+    def is_python_or_ipython(self):
+        return self.is_python() or self.is_ipython()
+
     def is_cython(self):
         return self.highlighter_class is sh.CythonSH
 
@@ -2021,7 +2072,8 @@ class CodeEditor(TextEditBaseWidget):
         return self.highlighter_class is sh.EnamlSH
 
     def is_python_like(self):
-        return self.is_python() or self.is_cython() or self.is_enaml()
+        return (self.is_python() or self.is_ipython()
+                or self.is_cython() or self.is_enaml())
 
     def intelligent_tab(self):
         """Provide intelligent behavior for Tab key press."""
@@ -2718,6 +2770,10 @@ class CodeEditor(TextEditBaseWidget):
         """
         document = self.document()
         for diagnostic in self._diagnostics:
+            if self.is_ipython() and (
+                    diagnostic["message"] == "undefined name 'get_ipython'"):
+                # get_ipython is defined in IPython files
+                continue
             source = diagnostic.get('source', '')
             msg_range = diagnostic['range']
             start = msg_range['start']
@@ -4760,6 +4816,63 @@ class CodeEditor(TextEditBaseWidget):
             return N_strip
         return 0
 
+    def move_line_up(self):
+        """Move up current line or selected text"""
+        self.__move_line_or_selection(after_current_line=False)
+
+    def move_line_down(self):
+        """Move down current line or selected text"""
+        self.__move_line_or_selection(after_current_line=True)
+
+    def __move_line_or_selection(self, after_current_line=True):
+        cursor = self.textCursor()
+        # Unfold any folded code block before moving lines up/down
+        folding_panel = self.panels.get('FoldingPanel')
+        fold_start_line = cursor.blockNumber() + 1
+        block = cursor.block().next()
+
+        if fold_start_line in folding_panel.folding_status:
+            fold_status = folding_panel.folding_status[fold_start_line]
+            if fold_status:
+                folding_panel.toggle_fold_trigger(block)
+
+        if after_current_line:
+            # Unfold any folded region when moving lines down
+            fold_start_line = cursor.blockNumber() + 2
+            block = cursor.block().next().next()
+
+            if fold_start_line in folding_panel.folding_status:
+                fold_status = folding_panel.folding_status[fold_start_line]
+                if fold_status:
+                    folding_panel.toggle_fold_trigger(block)
+        else:
+            # Unfold any folded region when moving lines up
+            block = cursor.block()
+            offset = 0
+            if self.has_selected_text():
+                ((selection_start, _),
+                 (selection_end)) = self.get_selection_start_end()
+                if selection_end != selection_start:
+                    offset = 1
+            fold_start_line = block.blockNumber() - 1 - offset
+
+            # Find the innermost code folding region for the current position
+            enclosing_regions = sorted(list(
+                folding_panel.current_tree[fold_start_line]))
+
+            folding_status = folding_panel.folding_status
+            if len(enclosing_regions) > 0:
+                for region in enclosing_regions:
+                    fold_start_line = region.begin
+                    block = self.document().findBlockByNumber(fold_start_line)
+                    if fold_start_line in folding_status:
+                        fold_status = folding_status[fold_start_line]
+                        if fold_status:
+                            folding_panel.toggle_fold_trigger(block)
+
+        self._TextEditBaseWidget__move_line_or_selection(
+            after_current_line=after_current_line)
+
     def mouseMoveEvent(self, event):
         """Underline words when pressing <CONTROL>"""
         # Restart timer every time the mouse is moved
@@ -4869,10 +4982,10 @@ class CodeEditor(TextEditBaseWidget):
                                                 nbformat is not None)
         self.ipynb_convert_action.setVisible(self.is_json() and
                                              nbformat is not None)
-        self.run_cell_action.setVisible(self.is_python())
-        self.run_cell_and_advance_action.setVisible(self.is_python())
-        self.run_selection_action.setVisible(self.is_python())
-        self.re_run_last_cell_action.setVisible(self.is_python())
+        self.run_cell_action.setVisible(self.is_python_or_ipython())
+        self.run_cell_and_advance_action.setVisible(self.is_python_or_ipython())
+        self.run_selection_action.setVisible(self.is_python_or_ipython())
+        self.re_run_last_cell_action.setVisible(self.is_python_or_ipython())
         self.gotodef_action.setVisible(self.go_to_definition_enabled)
 
         formatter = CONF.get('lsp-server', 'formatting')
