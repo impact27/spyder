@@ -2,7 +2,6 @@
 #
 # Copyright © 2020 Spyder Project Contributors.
 # Licensed under the terms of the GPL-3.0 License
-# (see spyder/__init__.py for details)
 #
 # Copyright © 2018 Nicholas H.Tollervey.
 # This program is free software: you can redistribute it and/or modify
@@ -17,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """
-Script to create a windows installer using pynsist.
+Script to create a Windows installer using pynsist.
 
 Based on the Mu's win_installer.py script
 https://github.com/mu-editor/mu/blob/master/win_installer.py
@@ -310,6 +309,12 @@ def run(python_version, bitness, repo_root, entrypoint, package, icon_path,
             shutil.copy(
                 "installers/Windows/assets/jedi/__main__.py",
                 os.path.join(work_dir, "__main__.py"))
+
+            print("Copying NSIS plugins into discoverable path")
+            shutil.copy(
+                "installers/Windows/assets/nsist/plugins/x86-unicode/"
+                "WinShell.dll",
+                "C:/Program Files (x86)/NSIS/Plugins/x86-unicode/WinShell.dll")
 
             if template:
                 print("Copying template into discoverable path for Pynsist")

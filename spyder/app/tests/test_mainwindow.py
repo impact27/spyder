@@ -43,10 +43,9 @@ from qtpy.QtWebEngineWidgets import WEBENGINE
 # Local imports
 from spyder import __trouble_url__, __project_url__
 from spyder.app import start
-from spyder.app.mainwindow import MainWindow  # Tests fail without this import
+from spyder.app.mainwindow import MainWindow
 from spyder.config.base import get_home_dir, get_conf_path, get_module_path
 from spyder.config.manager import CONF
-from spyder.preferences.runconfig import RunConfiguration
 from spyder.plugins.base import PluginWindow
 from spyder.plugins.help.widgets import ObjectComboBox
 from spyder.plugins.help.tests.test_plugin import check_text
@@ -724,6 +723,7 @@ def test_move_to_first_breakpoint(main_window, qtbot, debugcell):
 @pytest.mark.skipif(os.name == 'nt', reason='Fails on windows!')
 def test_runconfig_workdir(main_window, qtbot, tmpdir):
     """Test runconfig workdir options."""
+    from spyder.preferences.runconfig import RunConfiguration
     CONF.set('run', 'configurations', [])
 
     # ---- Load test file ----
@@ -780,6 +780,8 @@ def test_runconfig_workdir(main_window, qtbot, tmpdir):
                     reason="It's failing there")
 def test_dedicated_consoles(main_window, qtbot):
     """Test running code in dedicated consoles."""
+    from spyder.preferences.runconfig import RunConfiguration
+
     # ---- Load test file ----
     test_file = osp.join(LOCATION, 'script.py')
     main_window.editor.load(test_file)
@@ -846,6 +848,8 @@ def test_connection_to_external_kernel(main_window, qtbot):
     qtbot.wait(500)
     assert nsb.editor.source_model.rowCount() == 0
 
+    python_shell = shell
+
     # Test with a kernel from Spyder
     spykm, spykc = start_new_kernel(spykernel=True)
     main_window.ipyconsole._create_client_for_kernel(spykc.connection_file, None,
@@ -861,11 +865,38 @@ def test_connection_to_external_kernel(main_window, qtbot):
     qtbot.wait(500)
     assert nsb.editor.source_model.rowCount() == 1
 
-    # Shutdown the kernels
-    spykm.stop_restarter()
-    km.stop_restarter()
-    spykm.shutdown_kernel(now=True)
-    km.shutdown_kernel(now=True)
+    # Test runfile in external_kernel
+    run_action = main_window.run_toolbar_actions[0]
+    run_button = main_window.run_toolbar.widgetForAction(run_action)
+
+    # create new file
+    main_window.editor.new()
+    code_editor = main_window.editor.get_focus_widget()
+    code_editor.set_text(
+        "print(2 + 1)"
+    )
+
+    # Start running
+    with qtbot.waitSignal(shell.executed):
+        qtbot.mouseClick(run_button, Qt.LeftButton)
+
+    assert "runfile" in shell._control.toPlainText()
+    assert "3" in shell._control.toPlainText()
+
+    # Try quitting the kernels
+    shell.execute('quit()')
+    python_shell.execute('quit()')
+    qtbot.wait(1000)
+
+    # Make sure everything quit properly
+    assert km.kernel.poll() is not None
+    assert spykm.kernel.poll() is not None
+    if spykm._restarter:
+        assert spykm._restarter.poll() is not None
+    if km._restarter:
+        assert km._restarter.poll() is not None
+
+    # Close the channels
     spykc.stop_channels()
     kc.stop_channels()
 
@@ -1879,6 +1910,7 @@ def test_tight_layout_option_for_inline_plot(main_window, qtbot, tmpdir):
 
 @flaky(max_runs=3)
 @pytest.mark.slow
+@pytest.mark.use_introspection
 def test_switcher(main_window, qtbot, tmpdir):
     """Test the use of shorten paths when necessary in the switcher."""
     switcher = main_window.switcher
@@ -1926,6 +1958,16 @@ def example_def_2():
 
     # Assert symbol switcher works
     main_window.editor.set_current_filename(str(file_a))
+
+    code_editor = main_window.editor.get_focus_widget()
+    with qtbot.waitSignal(code_editor.lsp_response_signal, timeout=30000):
+        code_editor.document_did_open()
+
+    with qtbot.waitSignal(code_editor.lsp_response_signal, timeout=30000):
+        code_editor.request_symbols()
+
+    qtbot.wait(9000)
+
     main_window.open_switcher()
     qtbot.keyClicks(switcher.edit, '@')
     qtbot.wait(200)
@@ -1959,7 +2001,10 @@ def test_edidorstack_open_switcher_dlg(main_window, tmpdir):
 
 @flaky(max_runs=3)
 @pytest.mark.slow
-def test_edidorstack_open_symbolfinder_dlg(main_window, qtbot, tmpdir):
+@pytest.mark.use_introspection
+@pytest.mark.skipif(not sys.platform.startswith('linux'),
+                    reason="It times out too much on Windows and macOS")
+def test_editorstack_open_symbolfinder_dlg(main_window, qtbot, tmpdir):
     """
     Test that the symbol finder is working as expected when called from the
     editorstack.
@@ -1976,6 +2021,15 @@ def test_edidorstack_open_symbolfinder_dlg(main_window, qtbot, tmpdir):
                    pass
                ''')
     main_window.editor.load(str(file))
+
+    code_editor = main_window.editor.get_focus_widget()
+    with qtbot.waitSignal(code_editor.lsp_response_signal, timeout=30000):
+        code_editor.document_did_open()
+
+    with qtbot.waitSignal(code_editor.lsp_response_signal, timeout=30000):
+        code_editor.request_symbols()
+
+    qtbot.wait(5000)
 
     # Test that the symbol finder opens as expected from the editorstack.
     editorstack = main_window.editor.get_current_editorstack()
@@ -2368,7 +2422,7 @@ def test_preferences_checkboxes_not_checked_regression(main_window, qtbot):
     # Get the correct tab pages inside the Completion preferences page
     tnames = [page.tabs.tabText(i).lower() for i in range(page.tabs.count())]
     tab_widgets = {
-        tnames.index('code style'): page.code_style_check,
+        tnames.index('code style and formatting'): page.code_style_check,
         tnames.index('docstring style'): page.docstring_style_check,
     }
     for idx, check in tab_widgets.items():
