@@ -508,6 +508,8 @@ class IPythonConsole(SpyderPluginWidget):
             self.main.variableexplorer.set_shellwidget_from_id(id(sw))
             self.main.plots.set_shellwidget_from_id(id(sw))
             self.main.help.set_shell(sw)
+            if self.main.framesexplorer:
+                self.main.framesexplorer.set_shellwidget_from_id(id(sw))
             if self.matplotlib_status is not None:
                 self.matplotlib_status.set_shellwidget_from_id(id(sw))
             self.sig_pdb_state.emit(
@@ -1497,6 +1499,10 @@ class IPythonConsole(SpyderPluginWidget):
             self.main.plots.add_shellwidget(sw)
             kc.stopped_channels.connect(lambda :
                 self.main.plots.remove_shellwidget(id(sw)))
+        if self.main.framesexplorer is not None:
+            self.main.framesexplorer.add_shellwidget(sw)
+            kc.stopped_channels.connect(lambda :
+                self.main.framesexplorer.remove_shellwidget(id(sw)))
 
     #------ Public API (for tabs) ---------------------------------------------
     def add_tab(self, widget, name, filename=''):
@@ -1677,6 +1683,8 @@ class IPythonConsole(SpyderPluginWidget):
             self.main.variableexplorer.add_shellwidget(client.shellwidget)
         if self.main.plots is not None:
             self.main.plots.add_shellwidget(client.shellwidget)
+        if self.main.framesexplorer is not None:
+            self.main.framesexplorer.add_shellwidget(client.shellwidget)
         if self.matplotlib_status is not None:
             self.matplotlib_status.add_shellwidget(client.shellwidget)
 
@@ -1686,6 +1694,8 @@ class IPythonConsole(SpyderPluginWidget):
                 id(client.shellwidget))
         if self.main.plots is not None:
             self.main.plots.remove_shellwidget(id(client.shellwidget))
+        if self.main.framesexplorer is not None:
+            self.main.framesexplorer.remove_shellwidget(id(client.shellwidget))
         if self.matplotlib_status is not None:
             self.matplotlib_status.remove_shellwidget(id(client.shellwidget))
 

@@ -53,6 +53,8 @@ class ShellWidget(NamepaceBrowserWidget, HelpWidget, DebuggingWidget,
     sig_pdb_step = Signal(str, int)
     sig_pdb_state = Signal(bool, dict)
     sig_pdb_prompt_ready = Signal()
+    sig_pdb_stack = Signal(list, int)
+    sig_show_traceback = Signal(object, object, list)
 
     # For ShellWidget
     focus_changed = Signal()
@@ -112,6 +114,7 @@ class ShellWidget(NamepaceBrowserWidget, HelpWidget, DebuggingWidget,
             'do_where': self.do_where,
             'pdb_input': self.pdb_input,
             'request_interrupt_eventloop': self.request_interrupt_eventloop,
+            'show_traceback': self.show_traceback,
             "update_matplotlib_gui": self.update_matplotlib_gui,
         }
         for request_id in handlers:
@@ -123,6 +126,7 @@ class ShellWidget(NamepaceBrowserWidget, HelpWidget, DebuggingWidget,
 
         # Internal kernel are always spyder kernels
         self._is_spyder_kernel = not external_kernel
+        self._keep_show_traceback = False
 
     def __del__(self):
         """Avoid destroying shutdown_thread."""
@@ -577,6 +581,23 @@ the sympy module (e.g. plot)
                 reset_namespace, array_inline, array_table, clear_line]
 
     # --- To communicate with the kernel
+    def show_traceback(self, etype, error, tb):
+        """Get new traceback"""
+        # Don't reset when execution finishes
+        self._keep_show_traceback = True
+        self.sig_show_traceback.emit(etype, error, tb)
+
+    def _handle_execute_reply(self, msg):
+        """
+        Reimplemented to handle communications between Spyder
+        and the kernel
+        """
+        if msg['content']['status'] == 'ok' and not self._keep_show_traceback:
+            # Hide error
+            self.sig_show_traceback.emit(None, None, [])
+        self._keep_show_traceback = False
+        return super()._handle_execute_reply(msg)
+
     def silent_execute(self, code):
         """Execute code in the kernel without increasing the prompt"""
         try:

@@ -5,8 +5,8 @@
 ;
 [subrepo]
 	remote = https://github.com/spyder-ide/spyder-kernels.git
-	branch = interactive_matplotlib
-	commit = 961305dcfe5dcb3a5a328c8e1b5b74e5dfdc3a64
-	parent = 1cbaf187002334b94ff2414175b816f4f524bac2
+	branch = get_current_frames
+	commit = f8f8f44ee538420844a796e3344d29a03a3dc401
+	parent = 0c833ba70ea0c7a32a9cefa7d5f26ee5e5a1a516
 	method = merge
 	cmdver = 0.4.1

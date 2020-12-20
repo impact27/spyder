@@ -3806,6 +3806,61 @@ def test_outline_no_init(main_window, qtbot):
 
 
 @pytest.mark.slow
+@pytest.mark.skipif(PY2 or sys.platform == 'darwin',
+                    reason="Not supported for python 2 and fails on macOS")
+@flaky(max_runs=3)
+@pytest.mark.parametrize(
+    "thread", [False, True])
+def test_print_frames(main_window, qtbot, tmpdir, thread):
+    """Test the runcell command."""
+    # Write code with a cell to a file
+    if thread:
+        code = (
+            "import threading\n"
+            "def deadlock():\n"
+            "    lock = threading.Lock()\n"
+            "    lock.acquire()\n"
+            "    lock.acquire()\n"
+            "t = threading.Thread(target=deadlock)\n"
+            "t.start()\n"
+            "t.join()\n")
+    else:
+        code = (
+            'import threading\n'
+            'lock = threading.Lock()\n'
+            'lock.acquire()\n'
+            'lock.acquire()')
+    p = tmpdir.join("print-test.py")
+    p.write(code)
+    main_window.editor.load(to_text_string(p))
+    shell = main_window.ipyconsole.get_current_shellwidget()
+    qtbot.waitUntil(lambda: shell._prompt_html is not None,
+                    timeout=SHELL_TIMEOUT)
+
+    frames_explorer = main_window.framesexplorer.get_focus_widget()
+    frames_browser = frames_explorer.results_browser
+
+    # Click the run button
+    run_action = main_window.run_toolbar_actions[0]
+    run_button = main_window.run_toolbar.widgetForAction(run_action)
+    qtbot.mouseClick(run_button, Qt.LeftButton)
+    qtbot.wait(1000)
+
+    # Check we are blocked
+    control = main_window.ipyconsole.get_focus_widget()
+    assert ']:' not in control.toPlainText().split()[-1]
+
+    frames_explorer.refresh()
+    qtbot.wait(1000)
+    qtbot.waitUntil(lambda: len(frames_browser.data) > 0, timeout=10000)
+
+    if thread:
+        assert len(frames_browser.frames) == 2
+    else:
+        assert len(frames_browser.frames) == 1
+
+
+@pytest.mark.slow
 @flaky(max_runs=3)
 def test_pdb_without_comm(main_window, qtbot):
     """Check if pdb works without comm."""

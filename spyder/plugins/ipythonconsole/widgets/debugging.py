@@ -409,6 +409,10 @@ class DebuggingWidget(DebuggingHistoryWidget):
         if 'var_properties' in pdb_state:
             self.set_var_properties(pdb_state['var_properties'])
 
+        if 'pdb_stack' in pdb_state:
+            self.pdb_curindex = pdb_state['pdb_stack'][1]
+            self.sig_pdb_stack.emit(*pdb_state['pdb_stack'])
+
     def set_pdb_state(self, pdb_state):
         """Set current pdb state."""
         if pdb_state is not None and isinstance(pdb_state, dict):
@@ -445,6 +449,20 @@ class DebuggingWidget(DebuggingHistoryWidget):
             self._reading = False
             self._readline(prompt=prompt, callback=self._pdb_readline_callback,
                            password=password)
+
+    def set_pdb_index(self, index):
+        """Set pdb index"""
+        if self.is_waiting_pdb_input():
+            delta_index = self.pdb_curindex - index
+            if delta_index > 0:
+                self.pdb_execute("!up " + str(delta_index),
+                                 echo_stack_entry=False,
+                                 add_history=False)
+            elif delta_index < 0:
+                self.pdb_execute("!down " + str(-delta_index),
+                                 echo_stack_entry=False,
+                                 add_history=False)
+
 
     # --- Private API --------------------------------------------------
     def _current_prompt(self):
