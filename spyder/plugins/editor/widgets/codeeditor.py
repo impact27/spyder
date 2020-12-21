@@ -374,6 +374,10 @@ class CodeEditor(TextEditBaseWidget):
     # Used to start the status spinner in the editor
     sig_stop_operation_in_progress = Signal()
 
+    # Clipboard metadata shared between instances
+    _clipboard_hash = None
+    _clipboard_indent = None
+
     def __init__(self, parent=None):
         TextEditBaseWidget.__init__(self, parent)
 
@@ -665,10 +669,6 @@ class CodeEditor(TextEditBaseWidget):
         # such as line stripping
         self.is_undoing = False
         self.is_redoing = False
-
-        # copy/paste
-        self._clipboard_hash = None
-        self._clipboard_indent = None
 
     # --- Helper private methods
     # ------------------------------------------------------------------------
@@ -2703,10 +2703,10 @@ class CodeEditor(TextEditBaseWidget):
         first_line = preceding_text + first_line
 
         remaining_lines_adjustment = 0
-        if hash(text) == self._clipboard_hash:
+        if hash(text) == CodeEditor._clipboard_hash:
             remaining_lines_adjustment = (
                 self.get_line_indentation(preceding_text)
-                - self._clipboard_indent)
+                - CodeEditor._clipboard_indent)
 
         # Fix indentation of multiline text
         if self.is_python_like():
@@ -2749,8 +2749,8 @@ class CodeEditor(TextEditBaseWidget):
         cursor.setPosition(cursor.block().position(),
                            QTextCursor.KeepAnchor)
         text = cursor.selectedText()
-        self._clipboard_hash = clipboard_hash
-        self._clipboard_indent = self.get_line_indentation(text)
+        CodeEditor._clipboard_hash = clipboard_hash
+        CodeEditor._clipboard_indent = self.get_line_indentation(text)
 
     @Slot()
     def cut(self):
