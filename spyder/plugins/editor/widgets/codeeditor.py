@@ -2729,8 +2729,8 @@ class CodeEditor(TextEditBaseWidget):
 
         # Get new text
         remaining_lines = [
-            self.adjust_indentation(l, remaining_lines_adjustment)
-            for l in remaining_lines]
+            self.adjust_indentation(line, remaining_lines_adjustment)
+            for line in remaining_lines]
         text = eol_chars.join([first_line, *remaining_lines])
 
         self.skip_rstrip = True
@@ -3623,7 +3623,6 @@ class CodeEditor(TextEditBaseWidget):
                 correct_indent = -(-cur_indent // len(self.indent_chars)) * \
                     len(self.indent_chars)
         return correct_indent
-
 
     def fix_indent_smart(self, forward=True, comment_or_string=False,
                          cur_indent=None):
