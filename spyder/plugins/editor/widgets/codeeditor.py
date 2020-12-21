@@ -2647,12 +2647,24 @@ class CodeEditor(TextEditBaseWidget):
         """Adjust indentation."""
         if indent_adjustment == 0 or line == "":
             return line
-        if indent_adjustment > 0:
-            return ' ' * indent_adjustment + line
+        using_spaces = self.indent_chars != '\t'
 
-        line = line.replace("\t", " "*self.tab_stop_width_spaces)
+        if indent_adjustment > 0:
+            if using_spaces:
+                return ' ' * indent_adjustment + line
+            else:
+                return (
+                    self.indent_chars
+                    * indent_adjustment // self.tab_stop_width_spaces
+                    + line)
+
         max_indent = self.get_line_indentation(line)
-        return line[min(max_indent, -indent_adjustment):]
+        indent_adjustment = min(max_indent, -indent_adjustment)
+
+        indent_adjustment = (indent_adjustment if using_spaces else
+                             indent_adjustment // self.tab_stop_width_spaces)
+
+        return line[indent_adjustment:]
 
     @Slot()
     def paste(self):
