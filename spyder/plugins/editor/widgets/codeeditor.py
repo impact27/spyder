@@ -2695,8 +2695,8 @@ class CodeEditor(TextEditBaseWidget):
                                           + '"' for url in urls)
                 else:
                     text = urls[0].toLocalFile().replace(osp.os.sep, '/')
+        eol_chars = self.get_line_separator()
         if len(text.splitlines()) > 1:
-            eol_chars = self.get_line_separator()
             text = eol_chars.join((text + eol_chars).splitlines())
 
         # Align multiline text based on first line
@@ -2707,7 +2707,7 @@ class CodeEditor(TextEditBaseWidget):
         cursor.setPosition(cursor.block().position(),
                            QTextCursor.KeepAnchor)
         preceding_text = cursor.selectedText()
-        first_line, *remaining_lines = text.splitlines()
+        first_line, *remaining_lines = (text + eol_chars).splitlines()
         first_line = preceding_text + first_line
 
         remaining_lines_adjustment = 0
@@ -2731,7 +2731,7 @@ class CodeEditor(TextEditBaseWidget):
         remaining_lines = [
             self.adjust_indentation(l, remaining_lines_adjustment)
             for l in remaining_lines]
-        text = "\n".join([first_line, *remaining_lines])
+        text = eol_chars.join([first_line, *remaining_lines])
 
         self.skip_rstrip = True
         self.sig_will_paste_text.emit(text)
