@@ -2717,7 +2717,7 @@ class CodeEditor(TextEditBaseWidget):
                 - CodeEditor._clipboard_indent)
 
         # Fix indentation of multiline text
-        if self.is_python_like() and len(preceding_text.strip()) > 0:
+        if self.is_python_like() and len(preceding_text.strip()) == 0:
             # Correct indentation
             desired_indent = self.find_indentation()
             if desired_indent:
