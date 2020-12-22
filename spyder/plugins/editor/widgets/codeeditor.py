@@ -84,7 +84,7 @@ from spyder.plugins.outlineexplorer.languages import PythonCFM
 from spyder.plugins.outlineexplorer.api import (OutlineExplorerData as OED,
                                                 is_cell_header)
 from spyder.py3compat import PY2, to_text_string, is_string, is_text_string
-from spyder.utils import encoding, programs, sourcecode
+from spyder.utils import encoding, programs, sourcecode, clipboard_helper
 from spyder.utils import icon_manager as ima
 from spyder.utils import syntaxhighlighters as sh
 from spyder.utils.qthelpers import (add_actions, create_action, file_uri,
@@ -373,10 +373,6 @@ class CodeEditor(TextEditBaseWidget):
 
     # Used to start the status spinner in the editor
     sig_stop_operation_in_progress = Signal()
-
-    # Clipboard metadata shared between instances
-    _clipboard_hash = None
-    _clipboard_indent = None
 
     def __init__(self, parent=None):
         TextEditBaseWidget.__init__(self, parent)
@@ -2702,11 +2698,8 @@ class CodeEditor(TextEditBaseWidget):
         first_line, *remaining_lines = (text + eol_chars).splitlines()
         first_line = preceding_text + first_line
 
-        remaining_lines_adjustment = 0
-        if hash(text) == CodeEditor._clipboard_hash:
-            remaining_lines_adjustment = (
-                self.get_line_indentation(preceding_text)
-                - CodeEditor._clipboard_indent)
+        lines_adjustment = clipboard_helper.remaining_lines_adjustment(
+            preceding_text)
 
         # Fix indentation of multiline text
         if self.is_python_like() and len(preceding_text.strip()) == 0:
@@ -2715,13 +2708,15 @@ class CodeEditor(TextEditBaseWidget):
             if desired_indent:
                 first_line_adjustment = (
                     desired_indent - self.get_line_indentation(first_line))
-                remaining_lines_adjustment += first_line_adjustment
-                first_line = self.adjust_indentation(
-                    first_line, first_line_adjustment)
+                if first_line_adjustment < 0:
+                    # Only dedent, don't indent
+                    lines_adjustment += first_line_adjustment
+                    first_line = self.adjust_indentation(
+                        first_line, first_line_adjustment)
 
         # Get new text
         remaining_lines = [
-            self.adjust_indentation(line, remaining_lines_adjustment)
+            self.adjust_indentation(line, lines_adjustment)
             for line in remaining_lines]
         text = eol_chars.join([first_line, *remaining_lines])
 
@@ -2741,16 +2736,13 @@ class CodeEditor(TextEditBaseWidget):
 
         Must be called right after copying.
         """
-        clipboard = QApplication.clipboard()
-        text = to_text_string(clipboard.text())
-        clipboard_hash = hash(text)
         cursor = self.textCursor()
         cursor.setPosition(cursor.selectionStart())
         cursor.setPosition(cursor.block().position(),
                            QTextCursor.KeepAnchor)
-        text = cursor.selectedText()
-        CodeEditor._clipboard_hash = clipboard_hash
-        CodeEditor._clipboard_indent = self.get_line_indentation(text)
+        preceding_text = cursor.selectedText()
+        clipboard_helper.save_indentation(
+            preceding_text, self.tab_stop_width_spaces)
 
     @Slot()
     def cut(self):
