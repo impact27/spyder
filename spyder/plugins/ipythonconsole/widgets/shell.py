@@ -810,16 +810,25 @@ the sympy module (e.g. plot)
     def _get_preceding_text(self):
         """Get preciding text."""
         cursor = self._control.textCursor()
+        text = cursor.selectedText()
+        if text == "":
+            return
+        first_line_selection = text.splitlines()[0]
         cursor.setPosition(cursor.selectionStart())
         cursor.setPosition(cursor.block().position(),
                            QtGui.QTextCursor.KeepAnchor)
         preceding_text = cursor.selectedText()
+        first_line = preceding_text + first_line_selection
+        len_with_prompt = len(first_line)
         # Remove prompt
-        preceding_text = self._highlighter.transform_classic_prompt(
-            preceding_text)
-        preceding_text = self._highlighter.transform_ipy_prompt(
-            preceding_text)
-        return preceding_text
+        first_line = self._highlighter.transform_classic_prompt(first_line)
+        first_line = self._highlighter.transform_ipy_prompt(first_line)
+
+        prompt_len = len_with_prompt - len(first_line)
+        if prompt_len >= len(preceding_text):
+            return ""
+
+        return preceding_text[prompt_len:]
 
     def _save_clipboard_indentation(self):
         """
@@ -833,16 +842,16 @@ the sympy module (e.g. plot)
         """ 
         Copy the currently selected text to the clipboard.
         """
-        super().copy()
         self._save_clipboard_indentation()
+        super().copy()
 
     def cut(self):
         """ 
         Copy the currently selected text to the clipboard and delete it
         if it's inside the input buffer.
         """
-        super().cut()
         self._save_clipboard_indentation()
+        super().cut()
 
     # ---- Private methods (overrode by us) -----------------------------------
     def _handle_error(self, msg):
