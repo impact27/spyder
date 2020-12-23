@@ -782,8 +782,8 @@ the sympy module (e.g. plot)
             self._keep_cursor_in_buffer()
             cursor = self._control.textCursor()
 
-            # Remove any trailing newline, which confuses the GUI and forces the
-            # user to backspace.
+            # Remove any trailing newline, which confuses the GUI and forces
+            # the user to backspace.
             text = QtWidgets.QApplication.clipboard().text(mode).rstrip()
 
             # Adjust indentation of multilines pastes
@@ -797,8 +797,8 @@ the sympy module (e.g. plot)
                     for line in remaining_lines]
                 text = eol_chars.join([first_line, *remaining_lines])
 
-            # dedent removes "common leading whitespace" but to preserve relative
-            # indent of multiline code, we have to compensate for any
+            # dedent removes "common leading whitespace" but to preserve
+            # relative indent of multiline code, we have to compensate for any
             # leading space on the first line, if we're pasting into
             # an indented position.
             cursor_offset = cursor.position() - self._get_line_start_pos()
@@ -839,14 +839,14 @@ the sympy module (e.g. plot)
         clipboard_helper.save_indentation(self._get_preceding_text(), 4)
 
     def copy(self):
-        """ 
+        """
         Copy the currently selected text to the clipboard.
         """
         self._save_clipboard_indentation()
         super().copy()
 
     def cut(self):
-        """ 
+        """
         Copy the currently selected text to the clipboard and delete it
         if it's inside the input buffer.
         """

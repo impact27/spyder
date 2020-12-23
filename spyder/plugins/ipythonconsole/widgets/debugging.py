@@ -195,8 +195,8 @@ class DebuggingWidget(DebuggingHistoryWidget):
         # This adds the IPdb as a prompt self._highlighter recognises
         self._highlighter._ipy_prompt_re = re.compile(
             r'^({})?('.format(re.escape(self.other_output_prefix)) +
-            '[ \t]*\(*IPdb \[\d+\]\)*: |' +
-            '[ \t]*In \[\d+\]: |[ \t]*\ \ \ \.\.\.+: )')
+            r'[ \t]*\(*IPdb \[\d+\]\)*: |' +
+            r'[ \t]*In \[\d+\]: |[ \t]*\ \ \ \.\.\.+: )')
 
 
     # --- Public API --------------------------------------------------
