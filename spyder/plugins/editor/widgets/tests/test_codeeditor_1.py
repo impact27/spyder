@@ -174,7 +174,7 @@ def test_copy_paste_autoindent(code_editor_bot):
     cb.setText("d\n    e", mode=cb.Clipboard)
     editor.copy()
     # Paste
-    for indent in [0, 4, 8]:
+    for indent in [4, 8]:
         editor.set_text(text)
         cursor = editor.textCursor()
         cursor.setPosition(11)
