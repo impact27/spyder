@@ -839,7 +839,7 @@ the sympy module (e.g. plot)
         cursor = self._control.textCursor()
         text = cursor.selectedText()
         if text == "":
-            return
+            return ""
         first_line_selection = text.splitlines()[0]
         cursor.setPosition(cursor.selectionStart())
         cursor.setPosition(cursor.block().position(),
