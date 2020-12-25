@@ -2703,11 +2703,18 @@ class CodeEditor(TextEditBaseWidget):
         cursor.setPosition(cursor.block().position(),
                            QTextCursor.KeepAnchor)
         preceding_text = cursor.selectedText()
-        first_line, *remaining_lines = (text + eol_chars).splitlines()
-        first_line = preceding_text + first_line
+        first_line_selected, *remaining_lines = (text + eol_chars).splitlines()
+        first_line = preceding_text + first_line_selected
 
         lines_adjustment = clipboard_helper.remaining_lines_adjustment(
             preceding_text)
+
+        if preceding_text.strip() == "":
+            # The indent is controlled by preceding_text. Remove extra indent
+            extra_indent = self.get_line_indentation(first_line_selected)
+            lines_adjustment -= extra_indent
+            first_line = self.adjust_indentation(
+                first_line, -extra_indent)
 
         # Fix indentation of multiline text
         if self.is_python_like() and len(preceding_text.strip()) == 0:
