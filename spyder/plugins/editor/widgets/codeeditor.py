@@ -2709,7 +2709,7 @@ class CodeEditor(TextEditBaseWidget):
         lines_adjustment = clipboard_helper.remaining_lines_adjustment(
             preceding_text)
 
-        if preceding_text.strip() == "":
+        if preceding_text.strip() == "" and first_line.strip != "":
             # The indent is controlled by preceding_text. Remove extra indent
             extra_indent = self.get_line_indentation(first_line_selected)
             lines_adjustment -= extra_indent
