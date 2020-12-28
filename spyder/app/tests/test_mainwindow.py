@@ -3839,8 +3839,9 @@ def test_copy_paste(main_window, qtbot, tmpdir):
     assert clipboard_helper._ClipboardHelp.metadata_indent == 8
 
     # Test paste in console
-    qtbot.keyClick(shell, "v", modifier=Qt.ControlModifier)
-    assert "In [1]: def c():\n    print()" in shell._control.toPlainText()
+    qtbot.keyClick(shell._control, "v", modifier=Qt.ControlModifier)
+    expected = "In [1]: def c():\n   ...:     print()"
+    assert expected in shell._control.toPlainText()
 
     # Test paste at zero indentation
     qtbot.keyClick(code_editor, Qt.Key_Backspace)
