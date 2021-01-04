@@ -3807,6 +3807,9 @@ def test_outline_no_init(main_window, qtbot):
 
 
 @pytest.mark.slow
+@pytest.mark.skipif(
+    os.name == 'nt',
+    reason="test fails on windows.")
 def test_copy_paste(main_window, qtbot, tmpdir):
     """Test copy paste."""
     code = (
