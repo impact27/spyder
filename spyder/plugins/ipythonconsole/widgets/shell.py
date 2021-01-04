@@ -810,14 +810,14 @@ the sympy module (e.g. plot)
     def _get_preceding_text(self):
         """Get preciding text."""
         cursor = self._control.textCursor()
-        text = cursor.selectedText()
+        text = cursor.selection().toPlainText()
         if text == "":
             return ""
         first_line_selection = text.splitlines()[0]
         cursor.setPosition(cursor.selectionStart())
         cursor.setPosition(cursor.block().position(),
                            QtGui.QTextCursor.KeepAnchor)
-        preceding_text = cursor.selectedText()
+        preceding_text = cursor.selection().toPlainText()
         first_line = preceding_text + first_line_selection
         len_with_prompt = len(first_line)
         # Remove prompt
@@ -842,16 +842,16 @@ the sympy module (e.g. plot)
         """
         Copy the currently selected text to the clipboard.
         """
-        self._save_clipboard_indentation()
         super().copy()
+        self._save_clipboard_indentation()
 
     def cut(self):
         """
         Copy the currently selected text to the clipboard and delete it
         if it's inside the input buffer.
         """
-        self._save_clipboard_indentation()
         super().cut()
+        self._save_clipboard_indentation()
 
     # ---- Private methods (overrode by us) -----------------------------------
     def _handle_error(self, msg):
