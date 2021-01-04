@@ -3847,6 +3847,10 @@ def test_copy_paste(main_window, qtbot, tmpdir):
     qtbot.keyClick(code_editor, Qt.Key_Backspace)
     qtbot.keyClick(code_editor, Qt.Key_Backspace)
     qtbot.keyClick(code_editor, Qt.Key_Backspace)
+    # Check again that the clipboard is ready
+    assert QApplication.clipboard().text() == (
+        "def c():\n            print()\n")
+    assert clipboard_helper._ClipboardHelp.metadata_indent == 8
     qtbot.keyClick(code_editor, "v", modifier=Qt.ControlModifier)
     assert "\ndef c():\n    print()" in code_editor.toPlainText()
 
