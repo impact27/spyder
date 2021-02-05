@@ -47,7 +47,8 @@ from spyder.plugins.editor.widgets.codeeditor import CodeEditor
 from spyder.plugins.editor.utils.bookmarks import (load_bookmarks,
                                                    save_bookmarks)
 from spyder.plugins.editor.utils.debugger import (clear_all_breakpoints,
-                                                  clear_breakpoint)
+                                                  clear_breakpoint,
+                                                  set_breakpoint)
 from spyder.plugins.editor.widgets.status import (CursorPositionStatus,
                                                   EncodingStatus, EOLStatus,
                                                   ReadWriteStatus, VCSStatus)
@@ -2525,6 +2526,7 @@ class Editor(SpyderPluginWidget):
                 data.editor.debugger.clear_breakpoints()
         self.refresh_plugin()
 
+    @Slot(str, int)
     def clear_breakpoint(self, filename, lineno):
         """Remove a single breakpoint"""
         clear_breakpoint(filename, lineno)
@@ -2533,8 +2535,20 @@ class Editor(SpyderPluginWidget):
         if editorstack is not None:
             index = self.is_file_opened(filename)
             if index is not None:
-                editorstack.data[index].editor.debugger.toogle_breakpoint(
+                editorstack.data[index].editor.debugger.toggle_breakpoint(
                         lineno)
+
+    @Slot(str, int, object)
+    def set_breakpoint(self, filename, lineno, condition=None):
+        """Add a single breakpoint."""
+        set_breakpoint(filename, lineno, condition)
+        self.breakpoints_saved.emit()
+        editorstack = self.get_current_editorstack()
+        if editorstack is not None:
+            index = self.is_file_opened(filename)
+            if index is not None:
+                editorstack.data[index].editor.debugger.toggle_breakpoint(
+                        lineno, condition=condition)
 
     def stop_debugging(self):
         """Stop debugging"""

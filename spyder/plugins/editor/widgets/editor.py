@@ -1047,13 +1047,13 @@ class EditorStack(QWidget):
         """Set/clear breakpoint"""
         if self.data:
             editor = self.get_current_editor()
-            editor.debugger.toogle_breakpoint()
+            editor.debugger.toggle_breakpoint()
 
     def set_or_edit_conditional_breakpoint(self):
         """Set conditional breakpoint"""
         if self.data:
             editor = self.get_current_editor()
-            editor.debugger.toogle_breakpoint(edit_condition=True)
+            editor.debugger.toggle_breakpoint(edit_condition=True)
 
     def set_bookmark(self, slot_num):
         """Bookmark current position to given slot."""

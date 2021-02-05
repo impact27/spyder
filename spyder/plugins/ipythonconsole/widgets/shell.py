@@ -53,6 +53,9 @@ class ShellWidget(NamepaceBrowserWidget, HelpWidget, DebuggingWidget,
     sig_pdb_step = Signal(str, int)
     sig_pdb_state = Signal(bool, dict)
     sig_pdb_prompt_ready = Signal()
+    sig_breakpoints_saved = Signal()
+    sig_clear_breakpoint = Signal(str, int)
+    sig_set_breakpoint = Signal(str, int, object)
 
     # For ShellWidget
     focus_changed = Signal()

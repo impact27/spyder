@@ -387,6 +387,32 @@ class DebuggingWidget(DebuggingHistoryWidget):
         if 'var_properties' in pdb_state:
             self.set_var_properties(pdb_state['var_properties'])
 
+        if 'breakpoints' in pdb_state and not self.external_kernel:
+            old_breakpoints = CONF.get('run', 'breakpoints', {})
+            breakpoints = pdb_state["breakpoints"]
+            # Check for deleted breakpoints
+            for file in old_breakpoints:
+                if file not in breakpoints:
+                    for lineno, cond in old_breakpoints[file]:
+                        self.sig_clear_breakpoint.emit(file, lineno)
+                else:
+                    for lineno, cond in old_breakpoints[file]:
+                        if (lineno, cond) not in breakpoints[file]:
+                            self.sig_clear_breakpoint.emit(file, lineno)
+
+            # Add new breakpoints
+            for file in breakpoints:
+                if file not in old_breakpoints:
+                    for lineno, cond in breakpoints[file]:
+                        self.sig_set_breakpoint.emit(file, lineno, cond)
+                else:
+                    for lineno, cond in breakpoints[file]:
+                        if (lineno, cond) not in old_breakpoints[file]:
+                            self.sig_set_breakpoint.emit(file, lineno, cond)
+
+            CONF.set('run', 'breakpoints', breakpoints)
+            self.sig_breakpoints_saved.emit()
+
     def set_pdb_state(self, pdb_state):
         """Set current pdb state."""
         if pdb_state is not None and isinstance(pdb_state, dict):

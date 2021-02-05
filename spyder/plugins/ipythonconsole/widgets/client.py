@@ -316,6 +316,15 @@ class ClientWidget(QWidget, SaveHistoryMixin):
         # To apply style
         self.set_color_scheme(self.shellwidget.syntax_style, reset=False)
 
+        # To update breakpoints
+        if self.plugin.main.editor:
+            self.shellwidget.sig_breakpoints_saved.connect(
+                self.plugin.main.editor.breakpoints_saved)
+            self.shellwidget.sig_clear_breakpoint.connect(
+                self.plugin.main.editor.clear_breakpoint)
+            self.shellwidget.sig_set_breakpoint.connect(
+                self.plugin.main.editor.set_breakpoint)
+
     def add_to_history(self, command):
         """Add command to history"""
         if self.shellwidget.is_debugging():

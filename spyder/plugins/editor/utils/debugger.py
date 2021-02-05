@@ -42,7 +42,10 @@ def load_breakpoints(filename):
 
 def save_breakpoints(filename, breakpoints):
     bp_dict = _load_all_breakpoints()
-    bp_dict[osp.normcase(filename)] = breakpoints
+    if breakpoints:
+        bp_dict[osp.normcase(filename)] = breakpoints
+    elif osp.normcase(filename) in bp_dict:
+        del bp_dict[osp.normcase(filename)]
     CONF.set('run', 'breakpoints', bp_dict)
 
 
@@ -57,6 +60,18 @@ def clear_breakpoint(filename, lineno):
             if breakpoint[0] == lineno:
                 breakpoints.remove(breakpoint)
         save_breakpoints(filename, breakpoints)
+
+
+def set_breakpoint(filename, lineno, condition):
+    breakpoints = load_breakpoints(filename)
+    if breakpoints:
+        for breakpoint in breakpoints[:]:
+            if breakpoint[0] == lineno:
+                breakpoints.remove(breakpoint)
+    else:
+        breakpoints = []
+    breakpoints.append((lineno, condition))
+    save_breakpoints(filename, breakpoints)
 
 
 class DebuggerManager(Manager):
@@ -80,7 +95,7 @@ class DebuggerManager(Manager):
                 save_breakpoints(old_filename, [])  # clear old breakpoints
                 self.save_breakpoints()
 
-    def toogle_breakpoint(self, line_number=None, condition=None,
+    def toggle_breakpoint(self, line_number=None, condition=None,
                           edit_condition=False):
         """Add/remove breakpoint."""
         if not self.editor.is_python_like():
@@ -143,7 +158,7 @@ class DebuggerManager(Manager):
         """Set breakpoints"""
         self.clear_breakpoints()
         for line_number, condition in breakpoints:
-            self.toogle_breakpoint(line_number, condition)
+            self.toggle_breakpoint(line_number, condition)
         self.breakpoints = self.get_breakpoints()
 
     def update_breakpoints(self):

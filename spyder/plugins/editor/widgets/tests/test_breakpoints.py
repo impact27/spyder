@@ -88,7 +88,7 @@ def code_editor_bot(qtbot):
 def test_add_remove_breakpoint(code_editor_bot, mocker):
     """Test CodeEditor.add_remove_breakpoint()."""
     editor, qtbot = code_editor_bot
-    arb = editor.debugger.toogle_breakpoint
+    arb = editor.debugger.toggle_breakpoint
 
     mocker.patch.object(debugger.QInputDialog, 'getText')
 
@@ -149,7 +149,7 @@ def test_add_remove_breakpoint_with_edit_condition(code_editor_bot, mocker):
     # For spyder-ide/spyder#2179.
 
     editor, qtbot = code_editor_bot
-    arb = editor.debugger.toogle_breakpoint
+    arb = editor.debugger.toggle_breakpoint
     mocker.patch.object(debugger.QInputDialog, 'getText')
 
     linenumber = 5
@@ -196,7 +196,7 @@ def test_add_remove_breakpoint_with_edit_condition(code_editor_bot, mocker):
 def test_get_breakpoints(code_editor_bot):
     """Test CodeEditor.get_breakpoints."""
     editor, qtbot = code_editor_bot
-    arb = editor.debugger.toogle_breakpoint
+    arb = editor.debugger.toggle_breakpoint
     gb = editor.debugger.get_breakpoints
 
     assert(gb() == [])
