@@ -84,6 +84,7 @@ class WorkingDirectory(SpyderPluginV2):
         if editor:
             editor.sig_dir_opened.connect(
                 lambda path, plugin=editor: self.chdir(path, editor))
+            container.edit_goto.connect(editor.load)
 
         if ipyconsole:
             self.sig_current_directory_changed.connect(
