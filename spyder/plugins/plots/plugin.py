@@ -64,12 +64,12 @@ class Plots(SpyderDockablePlugin):
         ipyconsole = self.get_plugin(Plugins.IPythonConsole)
 
         # Signals
-        ipyconsole.sig_shellwidget_id_changed.disconnect(
-            self.set_shellwidget_from_id)
+        ipyconsole.sig_shellwidget_changed.disconnect(
+            self.set_shellwidget)
         ipyconsole.sig_shellwidget_process_started.disconnect(
             self.add_shellwidget)
-        ipyconsole.sig_shellwidget_id_process_finished.disconnect(
-            self.remove_shellwidget_from_id)
+        ipyconsole.sig_shellwidget_process_finished.disconnect(
+            self.remove_shellwidget)
 
     # --- Public API
     # ------------------------------------------------------------------------
