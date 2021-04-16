@@ -46,6 +46,7 @@ from spyder.plugins.ipythonconsole.utils.style import create_qss_style
 from spyder.plugins.ipythonconsole.widgets import (
     ClientWidget, ConsoleRestartDialog, KernelConnectionDialog,
     PageControlWidget)
+from spyder.plugins.ipythonconsole.widgets.status import MatplotlibStatus
 from spyder.py3compat import is_string, to_text_string, PY2, PY38_OR_MORE
 from spyder.utils import encoding
 from spyder.utils.icon_manager import ima
@@ -203,6 +204,7 @@ class IPythonConsole(SpyderPluginWidget):
         self.css_path = css_path
         self.run_cell_filename = None
         self.interrupt_action = None
+        self.matplotlib_status = None
 
         # Attrs for testing
         self.testing = testing
@@ -726,6 +728,24 @@ class IPythonConsole(SpyderPluginWidget):
         # Update kernels if python path is changed
         self.main.sig_pythonpath_changed.connect(self.update_path)
 
+        # Add matplotlib state to status bar
+        statusbar = self.main.get_plugin(Plugins.StatusBar)
+        if statusbar:
+            self.matplotlib_status = MatplotlibStatus(self)
+            statusbar.add_status_widget(self.matplotlib_status, 0)
+            self.sig_shellwidget_process_started.connect(
+                self.matplotlib_status.add_shellwidget)
+            self.sig_shellwidget_process_finished.connect(
+                self.matplotlib_status.remove_shellwidget)
+            self.sig_shellwidget_external_connect.connect(
+                lambda shellwidget:
+                    self.matplotlib_status.add_shellwidget(
+                        shellwidget, external=True))
+            self.sig_shellwidget_external_disconnect.connect(
+                self.matplotlib_status.remove_shellwidget)
+            self.sig_shellwidget_changed.connect(
+                self.matplotlib_status.set_shellwidget)
+
     #------ Public API (for clients) ------------------------------------------
     def get_clients(self):
         """Return clients list"""
@@ -1238,6 +1258,11 @@ class IPythonConsole(SpyderPluginWidget):
 
         # To handle %edit magic petitions
         shellwidget.custom_edit_requested.connect(self.edit_file)
+        if self.matplotlib_status is not None:
+            shellwidget.sig_matplotlib_gui.connect(
+                lambda gui, sid=id(shellwidget):
+                    self.matplotlib_status.update_matplotlib_gui(
+                        gui, sid))
 
         # Set shell cwd according to preferences
         cwd_path = ''

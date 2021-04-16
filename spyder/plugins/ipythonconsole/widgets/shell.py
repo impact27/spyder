@@ -62,6 +62,7 @@ class ShellWidget(NamepaceBrowserWidget, HelpWidget, DebuggingWidget,
     sig_kernel_restarted = Signal()
     sig_prompt_ready = Signal()
     sig_remote_execute = Signal()
+    sig_matplotlib_gui = Signal(str)
 
     # For global working directory
     sig_change_cwd = Signal(str)
@@ -111,6 +112,7 @@ class ShellWidget(NamepaceBrowserWidget, HelpWidget, DebuggingWidget,
             'do_where': self.do_where,
             'pdb_input': self.pdb_input,
             'request_interrupt_eventloop': self.request_interrupt_eventloop,
+            "update_matplotlib_gui": self.update_matplotlib_gui,
         }
         for request_id in handlers:
             self.spyder_kernel_comm.register_call_handler(
@@ -132,6 +134,10 @@ class ShellWidget(NamepaceBrowserWidget, HelpWidget, DebuggingWidget,
     def is_spyder_kernel(self):
         """Is the widget a spyder kernel."""
         return self._is_spyder_kernel
+
+    def update_matplotlib_gui(self, gui):
+        """Update matplotlib gui."""
+        self.sig_matplotlib_gui.emit(gui)
 
     def shutdown(self):
         """Shutdown kernel"""
