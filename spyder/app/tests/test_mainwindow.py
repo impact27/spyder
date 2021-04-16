@@ -4056,7 +4056,7 @@ def test_print_frames(main_window, qtbot, tmpdir, thread):
     qtbot.waitUntil(lambda: shell._prompt_html is not None,
                     timeout=SHELL_TIMEOUT)
 
-    frames_explorer = main_window.framesexplorer.get_focus_widget()
+    frames_explorer = main_window.framesexplorer.current_widget()
     frames_browser = frames_explorer.results_browser
 
     # Click the run button
