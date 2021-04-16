@@ -84,7 +84,8 @@ class IPythonConsole(SpyderPluginWidget):
 
     sig_shellwidget_process_started = Signal(object)
     """
-    This signal is emitted when a shellwidget process starts.
+    This signal is emitted when a shellwidget is connected to
+    an internal kernel.
 
     Parameters
     ----------
@@ -94,7 +95,8 @@ class IPythonConsole(SpyderPluginWidget):
 
     sig_shellwidget_process_finished = Signal(object)
     """
-    This signal is emitted when a shellwidget process finishes.
+    This signal is emitted when a shellwidget is disconnected from
+    an internal kernel.
 
     Parameters
     ----------
@@ -105,6 +107,28 @@ class IPythonConsole(SpyderPluginWidget):
     sig_shellwidget_changed = Signal(object)
     """
     This signal is emitted when the current shellwidget changes.
+
+    Parameters
+    ----------
+    shellwidget: spyder.plugins.ipyconsole.widgets.shell.ShellWidget
+        The shellwigdet.
+    """
+
+    sig_shellwidget_external_connect = Signal(object)
+    """
+    This signal is emitted when a shellwidget is connected to
+    an external kernel.
+
+    Parameters
+    ----------
+    shellwidget: spyder.plugins.ipyconsole.widgets.shell.ShellWidget
+        The shellwigdet.
+    """
+
+    sig_shellwidget_external_disconnect = Signal(object)
+    """
+    This signal is emitted when a shellwidget is disconnected from
+    an external kernel.
 
     Parameters
     ----------
@@ -1860,7 +1884,12 @@ class IPythonConsole(SpyderPluginWidget):
         if external_kernel:
             shellwidget.sig_is_spykernel.connect(
                 self.connect_external_kernel)
-            shellwidget.check_spyder_kernel()
+
+        # Here we notify about external shellwidgets
+        shellwidget.check_spyder_kernel()
+        self.sig_shellwidget_external_connect.emit(shellwidget)
+        kernel_client.stopped_channels.connect(lambda:
+            self.sig_shellwidget_external_disconnect.emit(shellwidget))
 
         # Set elapsed time, if possible
         if not external_kernel:
