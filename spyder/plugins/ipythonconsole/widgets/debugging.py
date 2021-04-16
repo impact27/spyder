@@ -465,13 +465,9 @@ class DebuggingWidget(DebuggingHistoryWidget):
         if self.is_waiting_pdb_input():
             delta_index = self.pdb_curindex - index
             if delta_index > 0:
-                self.pdb_execute("!up " + str(delta_index),
-                                 echo_stack_entry=False,
-                                 add_history=False)
+                self.pdb_execute_command("up " + str(delta_index))
             elif delta_index < 0:
-                self.pdb_execute("!down " + str(-delta_index),
-                                 echo_stack_entry=False,
-                                 add_history=False)
+                self.pdb_execute_command("down " + str(-delta_index))
 
 
     # --- Private API --------------------------------------------------

@@ -14,7 +14,7 @@ import html
 
 # Third library imports (qtpy)
 from qtpy.QtCore import Signal
-from qtpy.QtWidgets import (QVBoxLayout, QWidget)
+from qtpy.QtWidgets import (QVBoxLayout, QWidget, QTreeWidget)
 from qtpy.QtGui import QAbstractTextDocumentLayout, QTextDocument
 from qtpy.QtCore import (QSize, Qt, Slot)
 from qtpy.QtWidgets import (QApplication, QStyle,
@@ -177,7 +177,8 @@ class LineFrameItem(QTreeWidgetItem):
         """Prints item as html."""
         if self.filename is None:
             return ("<!-- LineFrameItem -->"
-                    "<p>idle</p>")
+                    '<p><span style="color:{0}">idle</span></p>').format(
+                        self.color_scheme['normal'][0])
         _str = ("<!-- LineFrameItem -->" +
                 "<p style=\"color:'{0}';\"><b> ".format(
                     self.color_scheme['normal'][0]) +
@@ -293,13 +294,13 @@ class ItemDelegate(QStyledItemDelegate):
         return size
 
 
-class ResultsBrowser(OneColumnTree):
+class ResultsBrowser(QTreeWidget):
     sig_edit_goto = Signal(str, int, str)
     sig_activated = Signal(int)
     sig_show_namespace = Signal(dict)
 
     def __init__(self, parent, color_scheme):
-        OneColumnTree.__init__(self, parent)
+        super().__init__(parent)
         self.font = get_font()
         self.data = None
         self.threads = None
@@ -307,6 +308,8 @@ class ResultsBrowser(OneColumnTree):
         self.text_color = color_scheme['normal'][0]
 
         # Setup
+        self.setItemsExpandable(True)
+        self.setColumnCount(1)
         self.set_title('')
         self.setSortingEnabled(False)
         self.setItemDelegate(ItemDelegate(self))
@@ -315,8 +318,13 @@ class ResultsBrowser(OneColumnTree):
 
         # Signals
         self.header().sectionClicked.connect(self.sort_section)
+        self.itemActivated.connect(self.activated)
+        self.itemClicked.connect(self.activated)
 
         self.finder = None
+    
+    def set_title(self, title):
+        self.setHeaderLabels([title])
 
     def activated(self, item):
         """Double-click event."""
@@ -334,10 +342,6 @@ class ResultsBrowser(OneColumnTree):
     def sort_section(self, idx):
         """Sort section"""
         self.setSortingEnabled(True)
-
-    def clicked(self, item):
-        """Click event."""
-        self.activated(item)
 
     def set_current_item(self, top_idx, sub_index):
         """Set current item."""
