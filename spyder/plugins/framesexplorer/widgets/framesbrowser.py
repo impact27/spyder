@@ -100,7 +100,7 @@ class FramesBrowser(QWidget, SpyderWidgetMixin):
         if self.results_browser is not None:
             self.results_browser.set_frames(frames)
             self.results_browser.set_title(title)
-            
+
             try:
                 self.results_browser.sig_activated.disconnect(
                     self.shellwidget.set_pdb_index)
@@ -322,7 +322,7 @@ class ResultsBrowser(QTreeWidget):
         self.itemClicked.connect(self.activated)
 
         self.finder = None
-    
+
     def set_title(self, title):
         self.setHeaderLabels([title])
 

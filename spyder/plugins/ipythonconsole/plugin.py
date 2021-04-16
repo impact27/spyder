@@ -1888,8 +1888,8 @@ class IPythonConsole(SpyderPluginWidget):
         # Here we notify about external shellwidgets
         shellwidget.check_spyder_kernel()
         self.sig_shellwidget_external_connect.emit(shellwidget)
-        kernel_client.stopped_channels.connect(lambda:
-            self.sig_shellwidget_external_disconnect.emit(shellwidget))
+        kernel_client.stopped_channels.connect(
+            lambda: self.sig_shellwidget_external_disconnect.emit(shellwidget))
 
         # Set elapsed time, if possible
         if not external_kernel:

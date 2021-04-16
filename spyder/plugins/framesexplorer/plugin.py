@@ -52,10 +52,10 @@ class FramesExplorer(SpyderDockablePlugin):
             self.add_shellwidget)
         ipyconsole.sig_shellwidget_process_finished.connect(
             self.remove_shellwidget)
-        ipyconsole.sig_shellwidget_external_connect.connect( 
-            self.add_shellwidget) 
-        ipyconsole.sig_shellwidget_external_disconnect.connect( 
-            self.remove_shellwidget) 
+        ipyconsole.sig_shellwidget_external_connect.connect(
+            self.add_shellwidget)
+        ipyconsole.sig_shellwidget_external_disconnect.connect(
+            self.remove_shellwidget)
 
         if editor:
             self.get_widget().edit_goto.connect(editor.load)
@@ -71,10 +71,10 @@ class FramesExplorer(SpyderDockablePlugin):
             self.add_shellwidget)
         ipyconsole.sig_shellwidget_process_finished.disconnect(
             self.remove_shellwidget)
-        ipyconsole.sig_shellwidget_external_connect.disconnect( 
-            self.add_shellwidget) 
-        ipyconsole.sig_shellwidget_external_disconnect.disconnect( 
-            self.remove_shellwidget) 
+        ipyconsole.sig_shellwidget_external_connect.disconnect(
+            self.add_shellwidget)
+        ipyconsole.sig_shellwidget_external_disconnect.disconnect(
+            self.remove_shellwidget)
         if editor:
             self.edit_goto.disconnect(editor.load)
 

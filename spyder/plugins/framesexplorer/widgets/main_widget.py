@@ -122,7 +122,6 @@ class FramesExplorerWidget(PluginMainWidget):
         self._stack.sig_show_namespace.connect(self.set_namespace_view)
         self._stack.sig_hide_finder_requested.connect(self.hide_finder)
 
-
     def set_namespace_view(self, view):
         self.current_widget().shellwidget.set_namespace_view(view)
 
@@ -152,7 +151,6 @@ class FramesExplorerWidget(PluginMainWidget):
             toggled=True,
             option='capture_locals',
         )
-
 
         # ---- Toolbar actions
         search_action = self.create_action(
