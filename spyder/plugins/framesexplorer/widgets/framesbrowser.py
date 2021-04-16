@@ -90,15 +90,17 @@ class FramesBrowser(QWidget, SpyderWidgetMixin):
             if sw.kernel_client is None:
                 return
             sw.call_kernel(
-                interrupt=True, callback=self.set_frames
+                interrupt=True, callback=self.set_from_refresh
                 ).get_current_frames(
                     ignore_internal_threads=self.get_conf("exclude_internal"),
                     capture_locals=self.get_conf("capture_locals"))
 
-    def set_frames(self, frames):
+    def set_frames(self, frames, title):
         """Set current frames"""
         if self.results_browser is not None:
             self.results_browser.set_frames(frames)
+            self.results_browser.set_title(title)
+            
             try:
                 self.results_browser.sig_activated.disconnect(
                     self.shellwidget.set_pdb_index)
@@ -107,7 +109,7 @@ class FramesBrowser(QWidget, SpyderWidgetMixin):
 
     def set_from_pdb(self, pdb_stack, curindex):
         """Set from pdb stack"""
-        self.set_frames({'pdb': pdb_stack})
+        self.set_frames({'pdb': pdb_stack}, "Pdb stack")
         self.set_current_item(0, curindex)
         self.results_browser.sig_activated.connect(
             self.shellwidget.set_pdb_index)
@@ -116,20 +118,20 @@ class FramesBrowser(QWidget, SpyderWidgetMixin):
 
     def set_from_exception(self, etype, error, tb):
         """Set from exception"""
-        self.set_frames({etype.__name__: tb})
+        self.set_frames({etype.__name__: tb}, "Exception occured")
         self.execution_frames = True
         self.should_clear = False
 
     def set_from_refresh(self, frames):
         """Set from pdb call"""
-        self.set_frames(frames)
+        self.set_frames(frames, "Snapshot of frames")
         self.execution_frames = False
         self.should_clear = False
 
     def clear_if_needed(self):
         """Execution finished. Clear if it is relevant."""
         if self.should_clear:
-            self.set_frames(None)
+            self.set_frames(None, "")
             self.should_clear = False
         elif self.execution_frames:
             self.should_clear = True
