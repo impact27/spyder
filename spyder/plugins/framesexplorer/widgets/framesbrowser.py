@@ -23,12 +23,15 @@ from qtpy.QtWidgets import (QApplication, QStyle,
 
 # Local imports
 from spyder.api.widgets.mixins import SpyderWidgetMixin
+from spyder.api.translations import get_translation
 from spyder.py3compat import to_text_string
-from spyder.widgets.onecolumntree import OneColumnTree
 from spyder.config.gui import get_font
 from spyder.widgets.helperwidgets import FinderLineEdit
 
 VALID_VARIABLE_CHARS = r"[^\w+*=¡!¿?'\"#$%&()/<>\-\[\]{}^`´;,|¬]*\w"
+
+# Localization
+_ = get_translation('spyder')
 
 
 class FramesBrowser(QWidget, SpyderWidgetMixin):
@@ -62,7 +65,6 @@ class FramesBrowser(QWidget, SpyderWidgetMixin):
         assert self.shellwidget is not None
 
         if self.results_browser is not None:
-            self.refresh()
             return
 
         self.results_browser = ResultsBrowser(self, self.color_scheme)
@@ -109,7 +111,7 @@ class FramesBrowser(QWidget, SpyderWidgetMixin):
 
     def set_from_pdb(self, pdb_stack, curindex):
         """Set from pdb stack"""
-        self.set_frames({'pdb': pdb_stack}, "Pdb stack")
+        self.set_frames({'pdb': pdb_stack}, _("Pdb stack"))
         self.set_current_item(0, curindex)
         self.results_browser.sig_activated.connect(
             self.shellwidget.set_pdb_index)
@@ -118,13 +120,13 @@ class FramesBrowser(QWidget, SpyderWidgetMixin):
 
     def set_from_exception(self, etype, error, tb):
         """Set from exception"""
-        self.set_frames({etype.__name__: tb}, "Exception occured")
+        self.set_frames({etype.__name__: tb}, _("Exception occured"))
         self.execution_frames = True
         self.should_clear = False
 
     def set_from_refresh(self, frames):
         """Set from pdb call"""
-        self.set_frames(frames, "Snapshot of frames")
+        self.set_frames(frames, _("Snapshot of frames"))
         self.execution_frames = False
         self.should_clear = False
 
@@ -306,6 +308,9 @@ class ResultsBrowser(QTreeWidget):
         self.threads = None
         self.color_scheme = color_scheme
         self.text_color = color_scheme['normal'][0]
+        self.frames = None
+        self.menu = None
+        self.empty_ws_menu = None
 
         # Setup
         self.setItemsExpandable(True)
@@ -334,9 +339,37 @@ class ResultsBrowser(QTreeWidget):
             self.sig_edit_goto.emit(filename, lineno, '')
             # Index exists if the item is in self.data
             self.sig_activated.emit(self.currentItem().index)
+        if self.parent().get_conf("show_locals_on_click"):
+            self.view_item_locals()
+
+    def view_item_locals(self):
+        """View item locals."""
         item = self.currentItem()
-        if isinstance(item, LineFrameItem) and item.locals is not None:
+        item_has_locals = (
+            isinstance(item, LineFrameItem) and
+            item.locals is not None)
+        if item_has_locals:
             self.sig_show_namespace.emit(item.locals)
+
+    def contextMenuEvent(self, event):
+        """Reimplement Qt method"""
+        if self.menu is None:
+            return
+
+        if self.frames:
+            self.menu.popup(event.globalPos())
+            event.accept()
+        else:
+            self.empty_ws_menu.popup(event.globalPos())
+            event.accept()
+
+    def refresh_menu(self):
+        """Refresh context menu"""
+        item = self.currentItem()
+        item_has_locals = (
+            isinstance(item, LineFrameItem) and
+            item.locals is not None)
+        self.view_locals_action.setEnabled(item_has_locals)
 
     @Slot(int)
     def sort_section(self, idx):

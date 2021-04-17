@@ -21,6 +21,8 @@ class FramesExplorerConfigPage(PluginConfigPage):
         filter_data = [
             ('exclude_internal', _("Exclude internal threads and frames")),
             ('capture_locals', _("Capture frames locals")),
+            ('show_locals_on_click',
+             _("Show locals in Variable explorer when frame is selected")),
                 ]
         filter_boxes = [self.create_checkbox(text, option)
                         for option, text in filter_data]

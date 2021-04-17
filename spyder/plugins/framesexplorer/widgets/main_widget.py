@@ -39,6 +39,7 @@ class FramesExplorerWidgetActions:
     # Toggles
     ToggleExcludeInternal = 'toggle_exclude_internal_action'
     ToggleCaptureLocals = 'toggle_capture_locals_action'
+    ToggleLocalsOnClick = 'toggle_show_locals_on_click_action'
 
 
 class FramesExplorerWidgetOptionsMenuSections:
@@ -152,6 +153,14 @@ class FramesExplorerWidget(PluginMainWidget):
             option='capture_locals',
         )
 
+        show_locals_on_click_action = self.create_action(
+            FramesExplorerWidgetActions.ToggleLocalsOnClick,
+            text=_("Show locals on click"),
+            tip=_("Show frame locals in the Variable explorer when selected."),
+            toggled=True,
+            option='show_locals_on_click',
+        )
+
         # ---- Toolbar actions
         search_action = self.create_action(
             FramesExplorerWidgetActions.Search,
@@ -161,25 +170,28 @@ class FramesExplorerWidget(PluginMainWidget):
             register_shortcut=True
         )
 
-        refresh_action = self.create_action(
+        self.refresh_action = self.create_action(
             FramesExplorerWidgetActions.Refresh,
             text=_("Refresh frames"),
             icon=self.create_icon('refresh'),
-            triggered=self.refresh_table,
+            triggered=self.refresh,
             register_shortcut=True,
         )
 
         # ---- Context menu actions
-        self.view_action = self.create_action(
+        self.view_locals_action = self.create_action(
             FramesExplorerContextMenuActions.ViewLocalsAction,
             _("View variables with the Variable Explorer"),
             icon=self.create_icon('outline_explorer'),
-            triggered=self.view_item
+            triggered=self.view_item_locals
         )
 
         # Options menu
         options_menu = self.get_options_menu()
-        for item in [exclude_internal_action, capture_locals_action]:
+        for item in [
+                exclude_internal_action,
+                capture_locals_action,
+                show_locals_on_click_action]:
             self.add_item_to_menu(
                 item,
                 menu=options_menu,
@@ -188,7 +200,7 @@ class FramesExplorerWidget(PluginMainWidget):
 
         # Main toolbar
         main_toolbar = self.get_main_toolbar()
-        for item in [search_action, refresh_action]:
+        for item in [search_action, self.refresh_action]:
             self.add_item_to_toolbar(
                 item,
                 toolbar=main_toolbar,
@@ -198,7 +210,7 @@ class FramesExplorerWidget(PluginMainWidget):
         # ---- Context menu to show when there are frames present
         self.context_menu = self.create_menu(
             FramesExplorerWidgetMenus.PopulatedContextMenu)
-        for item in [self.view_action]:
+        for item in [self.view_locals_action, self.refresh_action]:
             self.add_item_to_menu(
                 item,
                 menu=self.context_menu,
@@ -208,11 +220,11 @@ class FramesExplorerWidget(PluginMainWidget):
         # ---- Context menu when the frames explorer is empty
         self.empty_context_menu = self.create_menu(
             FramesExplorerWidgetMenus.EmptyContextMenu)
-        for item in []:
+        for item in [self.refresh_action]:
             self.add_item_to_menu(
                 item,
                 menu=self.empty_context_menu,
-                section=FramesExplorerContextMenuSections.Edit,
+                section=FramesExplorerContextMenuSections.Locals,
             )
 
     def update_style(self):
@@ -312,6 +324,7 @@ class FramesExplorerWidget(PluginMainWidget):
             nsb.set_shellwidget(shellwidget)
             nsb.setup()
             self.add_widget(nsb)
+            self._set_actions_and_menus(nsb)
             self._shellwidgets[shellwidget_id] = nsb
             self.set_current_widget(nsb, old_nsb)
             self.update_actions()
@@ -364,13 +377,13 @@ class FramesExplorerWidget(PluginMainWidget):
         finder_visibility = self.finder.isVisible()
         nsb.save_finder_state(last_find, finder_visibility)
 
-    def refresh_table(self):
+    def refresh(self):
         if self.count():
             nsb = self.current_widget()
             nsb.refresh()
 
-    def view_item(self):
-        self._current_editor.view_item()
+    def view_item_locals(self):
+        self.current_widget().results_browser.view_item_locals()
 
     def update_actions(self):
         nsb = self.current_widget()
@@ -385,3 +398,20 @@ class FramesExplorerWidget(PluginMainWidget):
                     nsb_actions = nsb.actions()
                     if action not in nsb_actions:
                         nsb.addAction(action)
+
+    def _set_actions_and_menus(self, nsb):
+        """
+        Set actions and menus created here and used by the frames
+        browser.
+
+        Although this is not ideal, it's necessary to be able to use
+        the CollectionsEditor widget separately from this plugin.
+        """
+        results_browser = nsb.results_browser
+
+        # Actions
+        results_browser.view_locals_action = self.view_locals_action
+
+        # Menus
+        results_browser.menu = self.context_menu
+        results_browser.empty_ws_menu = self.empty_context_menu

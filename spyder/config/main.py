@@ -186,6 +186,7 @@ DEFAULTS = [
              {
               'exclude_internal': True,
               'capture_locals': False,
+              'show_locals_on_click': False,
              }),
             ('plots',
              {
