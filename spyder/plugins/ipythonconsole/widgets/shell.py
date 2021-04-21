@@ -19,7 +19,7 @@ from qtpy.QtCore import Signal, QThread
 from qtpy.QtWidgets import QMessageBox
 
 # Local imports
-from spyder.config.base import _, running_under_pytest
+from spyder.config.base import _, running_under_pytest, get_conf_path
 from spyder.config.manager import CONF
 from spyder.py3compat import to_text_string
 from spyder.utils import programs, encoding
@@ -576,9 +576,10 @@ the sympy module (e.g. plot)
     def show_profile_file(self, file_content):
         """Save file content and show."""
         # File content is sent so this works in remote kernels
-        with open("tmp_file_prof.prof", "bw") as f:
+        profile_file = get_conf_path('shell_profiler.results')
+        with open(profile_file, "bw") as f:
             f.write(file_content)
-        self.sig_show_profile_file.emit("tmp_file_prof.prof")
+        self.sig_show_profile_file.emit(profile_file)
 
     def silent_execute(self, code):
         """Execute code in the kernel without increasing the prompt"""
