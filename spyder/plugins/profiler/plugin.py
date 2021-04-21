@@ -17,7 +17,7 @@ from qtpy.QtCore import Signal
 # Local imports
 from spyder.api.plugins import Plugins, SpyderDockablePlugin
 from spyder.api.translations import get_translation
-from spyder.plugins.mainmenu.api import ApplicationMenus
+from spyder.plugins.mainmenu.api import ApplicationMenus, RunMenuSections
 from spyder.plugins.profiler.confpage import ProfilerConfigPage
 from spyder.plugins.profiler.widgets.main_widget import (ProfilerWidget,
                                                          ProfilerWidgetActions,
@@ -129,7 +129,9 @@ class Profiler(SpyderDockablePlugin):
             run_menu = mainmenu.get_application_menu(ApplicationMenus.Run)
             for action in [
                     profile_file_action, profile_cell_action, run_action]:
-                mainmenu.add_item_to_application_menu(action, menu=run_menu)
+                mainmenu.add_item_to_application_menu(
+                    action, menu=run_menu,
+                    section=RunMenuSections.Profile)
 
         # TODO: On a separate PR when core plugin is merged
         # self.main.editor.pythonfile_dependent_actions += [profiler_act]
