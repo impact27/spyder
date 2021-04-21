@@ -32,6 +32,8 @@ _ = get_translation('spyder')
 # ----------------------------------------------------------------------------
 class ProfilerActions:
     ProfileCurrentFile = 'profile_current_filename_action'
+    ProfileCurrentCell = 'profile_current_cell_action'
+    ProfileCurrentFileInProcess = 'profile_current_filename_in_process_action'
 
 
 # --- Plugin
@@ -43,7 +45,7 @@ class Profiler(SpyderDockablePlugin):
 
     NAME = 'profiler'
     REQUIRES = [Plugins.Preferences, Plugins.Editor]
-    OPTIONAL = [Plugins.MainMenu]
+    OPTIONAL = [Plugins.MainMenu, Plugins.IPythonConsole]
     TABIFY = Plugins.Help
     WIDGET_CLASS = ProfilerWidget
     CONF_SECTION = NAME
@@ -57,6 +59,12 @@ class Profiler(SpyderDockablePlugin):
 
     sig_finished = Signal()
     """This signal is emitted to inform the profile profiling has finished."""
+
+    sig_profile_file = Signal()
+    """This signal is emitted to request the current file to be profiled."""
+
+    sig_profile_cell = Signal()
+    """This signal is emitted to request the current cell to be profiled."""
 
     # --- SpyderDockablePlugin API
     # ------------------------------------------------------------------------
@@ -74,31 +82,72 @@ class Profiler(SpyderDockablePlugin):
         editor = self.get_plugin(Plugins.Editor)
         mainmenu = self.get_plugin(Plugins.MainMenu)
         preferences = self.get_plugin(Plugins.Preferences)
+        ipythonconsole = self.get_plugin(Plugins.IPythonConsole)
 
         preferences.register_plugin_preferences(self)
         widget.sig_edit_goto_requested.connect(editor.load)
         widget.sig_started.connect(self.sig_started)
         widget.sig_finished.connect(self.sig_finished)
 
-        run_action = self.create_action(
+        profile_file_action = self.create_action(
             ProfilerActions.ProfileCurrentFile,
-            text=_("Run profiler"),
-            tip=_("Run profiler"),
+            text=_("Profile file"),
+            tip=_("Profile file"),
+            icon=self.create_icon('profiler'),
+            triggered=self.sig_profile_file.emit,
+            register_shortcut=True,
+        )
+
+        profile_cell_action = self.create_action(
+            ProfilerActions.ProfileCurrentCell,
+            text=_("Profile cell"),
+            tip=_("Profile cell"),
+            icon=self.create_icon('profiler'),
+            triggered=self.sig_profile_cell.emit,
+            register_shortcut=True,
+        )
+
+        # Could be depreciated?
+        run_action = self.create_action(
+            ProfilerActions.ProfileCurrentFileInProcess,
+            text=_("Profile in process"),
+            tip=_("Run profiler in dedicated process"),
             icon=self.create_icon('profiler'),
             triggered=self.run_profiler,
             register_shortcut=True,
         )
         run_action.setEnabled(is_profiler_installed())
 
+        if ipythonconsole:
+            ipythonconsole.sig_show_profile_file.connect(
+                self.show_profile_file)
+        if editor:
+            self.sig_profile_file.connect(editor.profile_file)
+            self.sig_profile_cell.connect(editor.profile_cell)
+
         if mainmenu:
             run_menu = mainmenu.get_application_menu(ApplicationMenus.Run)
-            mainmenu.add_item_to_application_menu(run_action, menu=run_menu)
+            for action in [
+                    profile_file_action, profile_cell_action, run_action]:
+                mainmenu.add_item_to_application_menu(action, menu=run_menu)
 
         # TODO: On a separate PR when core plugin is merged
         # self.main.editor.pythonfile_dependent_actions += [profiler_act]
 
     # --- Public API
     # ------------------------------------------------------------------------
+    def show_profile_file(self, filename):
+        """
+        Show profile sent by shell.
+
+        Parameters
+        ----------
+        filename: str
+            Path to file to analyze.
+        """
+        self.switch_to_plugin()
+        self.get_widget().show_profile_file(filename)
+
     def run_profiler(self):
         """
         Run profiler.

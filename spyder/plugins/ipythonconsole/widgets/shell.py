@@ -53,6 +53,7 @@ class ShellWidget(NamepaceBrowserWidget, HelpWidget, DebuggingWidget,
     sig_pdb_step = Signal(str, int)
     sig_pdb_state = Signal(bool, dict)
     sig_pdb_prompt_ready = Signal()
+    sig_show_profile_file = Signal(str)
 
     # For ShellWidget
     focus_changed = Signal()
@@ -111,6 +112,7 @@ class ShellWidget(NamepaceBrowserWidget, HelpWidget, DebuggingWidget,
             'do_where': self.do_where,
             'pdb_input': self.pdb_input,
             'request_interrupt_eventloop': self.request_interrupt_eventloop,
+            'show_profile_file': self.show_profile_file,
         }
         for request_id in handlers:
             self.spyder_kernel_comm.register_call_handler(
@@ -571,6 +573,13 @@ the sympy module (e.g. plot)
                 reset_namespace, array_inline, array_table, clear_line]
 
     # --- To communicate with the kernel
+    def show_profile_file(self, file_content):
+        """Save file content and show."""
+        # File content is sent so this works in remote kernels
+        with open("tmp_file_prof.prof", "bw") as f:
+            f.write(file_content)
+        self.sig_show_profile_file.emit("tmp_file_prof.prof")
+
     def silent_execute(self, code):
         """Execute code in the kernel without increasing the prompt"""
         try:

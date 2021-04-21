@@ -365,6 +365,20 @@ class ProfilerWidget(PluginMainWidget):
         if filename:
             self.datatree.save_data(filename)
 
+    def show_profile_file(self, filename):
+        """Show profile file."""
+        if not filename:
+            return
+
+        self.datatree.load_data(filename)
+        self.datatree.show_tree()
+
+        text_style = "<span style=\'color: %s\'><b>%s </b></span>"
+        date_text = text_style % (self.text_color,
+                                  time.strftime("%Y-%m-%d %H:%M:%S",
+                                                time.localtime()))
+        self.datelabel.setText(date_text)
+        
     def compare(self):
         """Compare previous saved run with last run."""
         filename, _selfilter = getopenfilename(

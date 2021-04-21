@@ -84,10 +84,15 @@ class Editor(SpyderPluginWidget):
     OPTIONAL = [Plugins.Completions, Plugins.OutlineExplorer]
 
     # Signals
-    run_in_current_ipyclient = Signal(str, str, str,
-                                      bool, bool, bool, bool, bool)
-    run_cell_in_ipyclient = Signal(str, object, str, bool)
-    debug_cell_in_ipyclient = Signal(str, object, str, bool)
+    sig_run_file_in_ipyclient = Signal(
+        str, str, str, bool, bool, bool, bool)
+    sig_debug_file_in_ipyclient = Signal(
+        str, str, str, bool, bool, bool, bool)
+    sig_profile_file_in_ipyclient = Signal(
+        str, str, str, bool, bool, bool, bool)
+    sig_run_cell_in_ipyclient = Signal(str, object, str, bool)
+    sig_debug_cell_in_ipyclient = Signal(str, object, str, bool)
+    sig_profile_cell_in_ipyclient = Signal(str, object, str, bool)
     exec_in_extconsole = Signal(str, bool)
     redirect_stdio = Signal(bool)
 
@@ -1498,14 +1503,18 @@ class Editor(SpyderPluginWidget):
         editorstack.exec_in_extconsole.connect(
                                     lambda text, option:
                                     self.exec_in_extconsole.emit(text, option))
-        editorstack.run_cell_in_ipyclient.connect(
+        editorstack.sig_run_cell_in_ipyclient.connect(
             lambda code, cell_name, filename, run_cell_copy:
-            self.run_cell_in_ipyclient.emit(code, cell_name, filename,
-                                            run_cell_copy))
-        editorstack.debug_cell_in_ipyclient.connect(
+            self.sig_run_cell_in_ipyclient.emit(
+                code, cell_name, filename, run_cell_copy))
+        editorstack.sig_debug_cell_in_ipyclient.connect(
             lambda code, cell_name, filename, run_cell_copy:
-            self.debug_cell_in_ipyclient.emit(code, cell_name, filename,
-                                              run_cell_copy))
+            self.sig_debug_cell_in_ipyclient.emit(
+                code, cell_name, filename, run_cell_copy))
+        editorstack.sig_profile_cell_in_ipyclient.connect(
+            lambda code, cell_name, filename, run_cell_copy:
+            self.sig_profile_cell_in_ipyclient.emit(
+                code, cell_name, filename, run_cell_copy))
         editorstack.update_plugin_title.connect(
                                    lambda: self.sig_update_plugin_title.emit())
         editorstack.editor_focus_changed.connect(self.save_focused_editorstack)
@@ -2730,7 +2739,7 @@ class Editor(SpyderPluginWidget):
                 self.run_file()
 
     @Slot()
-    def run_file(self, debug=False):
+    def run_file(self, debug=False, profile=False):
         """Run script inside current interpreter or in a new one"""
         editorstack = self.get_current_editorstack()
 
@@ -2788,7 +2797,7 @@ class Editor(SpyderPluginWidget):
 
         python = True  # Note: in the future, it may be useful to run
         # something in a terminal instead of a Python interp.
-        self.__last_ec_exec = (fname, wdir, args, interact, debug,
+        self.__last_ec_exec = (fname, wdir, args, interact, debug, profile,
                                python, python_args, current, systerm,
                                post_mortem, clear_namespace,
                                console_namespace)
@@ -2813,6 +2822,12 @@ class Editor(SpyderPluginWidget):
         self.run_file(debug=True)
 
     @Slot()
+    def profile_file(self):
+        """Profile current script"""
+        self.switch_to_plugin()
+        self.run_file(profile=True)
+
+    @Slot()
     def re_run_file(self, save_new_files=True):
         """Re-run last script"""
         if self.get_option('save_all_before_run'):
@@ -2821,15 +2836,24 @@ class Editor(SpyderPluginWidget):
                 return
         if self.__last_ec_exec is None:
             return
-        (fname, wdir, args, interact, debug,
+        (fname, wdir, args, interact, debug, profile,
          python, python_args, current, systerm,
          post_mortem, clear_namespace,
          console_namespace) = self.__last_ec_exec
         if not systerm:
-            self.run_in_current_ipyclient.emit(fname, wdir, args,
-                                               debug, post_mortem,
-                                               current, clear_namespace,
-                                               console_namespace)
+            if debug:
+                self.sig_debug_file_in_ipyclient.emit(
+                    fname, wdir, args, post_mortem, current, clear_namespace,
+                    console_namespace)
+            elif profile:
+                self.sig_profile_file_in_ipyclient.emit(
+                    fname, wdir, args, post_mortem, current, clear_namespace,
+                    console_namespace)
+            else:
+                self.sig_run_file_in_ipyclient.emit(
+                    fname, wdir, args, post_mortem, current, clear_namespace,
+                    console_namespace)
+
         else:
             self.main.open_external_console(fname, wdir, args, interact,
                                             debug, python, python_args,
@@ -2858,6 +2882,12 @@ class Editor(SpyderPluginWidget):
         '''Debug Current cell.'''
         editorstack = self.get_current_editorstack()
         editorstack.debug_cell()
+
+    @Slot()
+    def profile_cell(self):
+        '''Debug Current cell.'''
+        editorstack = self.get_current_editorstack()
+        editorstack.profile_cell()
 
     @Slot()
     def re_run_last_cell(self):

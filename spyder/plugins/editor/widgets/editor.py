@@ -179,8 +179,9 @@ class EditorStack(QWidget):
     ending_long_process = Signal(str)
     redirect_stdio = Signal(bool)
     exec_in_extconsole = Signal(str, bool)
-    run_cell_in_ipyclient = Signal(str, object, str, bool)
-    debug_cell_in_ipyclient = Signal(str, object, str, bool)
+    sig_run_cell_in_ipyclient = Signal(str, object, str, bool)
+    sig_debug_cell_in_ipyclient = Signal(str, object, str, bool)
+    sig_profile_cell_in_ipyclient = Signal(str, object, str, bool)
     update_plugin_title = Signal()
     editor_focus_changed = Signal()
     zoom_in = Signal()
@@ -2702,7 +2703,7 @@ class EditorStack(QWidget):
             editor.append(editor.get_line_separator())
         editor.move_cursor_to_next('line', 'down')
 
-    def run_cell(self, debug=False):
+    def run_cell(self, debug=False, profile=False):
         """Run current cell."""
         text, block = self.get_current_editor().get_cell_as_executable_code()
         finfo = self.get_current_finfo()
@@ -2710,11 +2711,15 @@ class EditorStack(QWidget):
         name = cell_name(block)
         filename = finfo.filename
 
-        self._run_cell_text(text, editor, (filename, name), debug)
+        self._run_cell_text(text, editor, (filename, name), debug, profile)
 
     def debug_cell(self):
         """Debug current cell."""
         self.run_cell(debug=True)
+
+    def profile_cell(self):
+        """Profile current cell."""
+        self.run_cell(profile=True)
 
     def run_cell_and_advance(self):
         """Run current cell and advance to the next one"""
@@ -2758,7 +2763,8 @@ class EditorStack(QWidget):
 
         self._run_cell_text(text, editor, (filename, cell_name))
 
-    def _run_cell_text(self, text, editor, cell_id, debug=False):
+    def _run_cell_text(
+            self, text, editor, cell_id, debug=False, profile=False):
         """Run cell code in the console.
 
         Cell code is run in the console by copying it to the console if
@@ -2776,9 +2782,11 @@ class EditorStack(QWidget):
         if editor.is_python_or_ipython():
             args = (text, cell_name, filename, self.run_cell_copy)
             if debug:
-                self.debug_cell_in_ipyclient.emit(*args)
+                self.sig_debug_cell_in_ipyclient.emit(*args)
+            elif profile:
+                self.sig_profile_cell_in_ipyclient.emit(*args)
             else:
-                self.run_cell_in_ipyclient.emit(*args)
+                self.sig_run_cell_in_ipyclient.emit(*args)
         if self.focus_to_editor:
             editor.setFocus()
         else:
