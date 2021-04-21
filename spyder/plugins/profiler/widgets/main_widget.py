@@ -381,7 +381,7 @@ class ProfilerWidget(PluginMainWidget):
                                   time.strftime("%Y-%m-%d %H:%M:%S",
                                                 time.localtime()))
         self.datelabel.setText(date_text)
-        
+
     def compare(self):
         """Compare previous saved run with last run."""
         filename, _selfilter = getopenfilename(

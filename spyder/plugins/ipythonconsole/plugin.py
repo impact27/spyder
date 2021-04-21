@@ -780,12 +780,12 @@ class IPythonConsole(SpyderPluginWidget):
                 if console_namespace:
                     line += ", current_namespace=True"
                 line += ")"
-            elif function=="profile_file":
+            elif function == "profile_file":
                 # Can't do anything
                 return
             else:  # External, non spyder-kernels, use %run
                 line = "%run "
-                if function=="debugfile":
+                if function == "debugfile":
                     line += "-d "
                 line += "\"%s\"" % to_text_string(filename)
                 if args:
@@ -818,18 +818,18 @@ class IPythonConsole(SpyderPluginWidget):
                   ) % osp.basename(filename), QMessageBox.Ok)
 
     def debug_file(self, filename, wdir, args, post_mortem,
-                     current_client, clear_variables, console_namespace):
+                   current_client, clear_variables, console_namespace):
         """Debug current file."""
         self.run_script(filename, wdir, args, post_mortem,
-                       current_client, clear_variables, console_namespace,
-                       function='debugfile')
+                        current_client, clear_variables, console_namespace,
+                        function='debugfile')
 
     def profile_file(self, filename, wdir, args, post_mortem,
                      current_client, clear_variables, console_namespace):
         """Profile current file."""
         self.run_script(filename, wdir, args, post_mortem,
-                       current_client, clear_variables, console_namespace,
-                       function='profile_file')
+                        current_client, clear_variables, console_namespace,
+                        function='profile_file')
 
     def run_cell(self, code, cell_name, filename, run_cell_copy,
                  function='runcell'):
