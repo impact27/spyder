@@ -369,6 +369,9 @@ class ProfilerWidget(PluginMainWidget):
         """Show profile file."""
         if not filename:
             return
+        # No log to show
+        self.log_action.setEnabled(False)
+        self._kill_if_running()
 
         self.datatree.load_data(filename)
         self.datatree.show_tree()
