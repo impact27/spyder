@@ -19,6 +19,7 @@ import os
 import os.path as osp
 import re
 import sys
+import tempfile
 import time
 from itertools import islice
 
@@ -132,7 +133,6 @@ class ProfilerWidget(PluginMainWidget):
 
         # Attributes
         self.text_color = self.get_conf('text_color')
-        self._datapath = None
 
         # Widgets
         self.datatree = ProfilerDataTree(self)
@@ -223,12 +223,21 @@ class ProfilerWidget(PluginMainWidget):
         if filename:
             self.datatree.save_data(filename)
 
-    def show_profile_file(self, filename):
+    def show_profile_buffer(self, prof_buffer):
         """Show profile file."""
-        if not filename:
+        if not prof_buffer:
             return
-        self._datapath = filename
-        self.show_data()
+        temp = tempfile.NamedTemporaryFile(delete=False)
+        temp.write(prof_buffer)
+        filename = temp.name
+        # Release the file (Important on Window to avoid file locks)
+        temp.close()
+        # Open again
+        self.load_data(filename)
+        # Delete
+        os.unlink(filename)
+        # Show
+        self.datatree.show_tree()
 
     def compare(self):
         """Compare previous saved run with last run."""
@@ -240,28 +249,24 @@ class ProfilerWidget(PluginMainWidget):
         )
 
         if filename:
-            if self._datapath is None:
-                self._datapath = filename
+            if self.datatree.profdata is None:
+                self.load_data(filename)
             self.datatree.compare(filename)
-            self.show_data()
+            self.datatree.show_tree()
             self.clear_action.setEnabled(True)
 
     def clear(self):
         """Clear data in tree."""
         self.datatree.compare(None)
-        self.datatree.hide_diff_cols(True)
-        self.show_data()
+        self.datatree.show_tree()
         self.clear_action.setEnabled(False)
 
-    def show_data(self):
-        """
-        Show analyzed data on results tree.
-        """
+    def load_data(self, filename):
+        """Load file."""
         self.datelabel.setText(_('Sorting data, please wait...'))
         QApplication.processEvents()
 
-        self.datatree.load_data(self._datapath)
-        self.datatree.show_tree()
+        self.datatree.load_data(filename)
 
         text_style = "<span style=\'color: %s\'><b>%s </b></span>"
         date_text = text_style % (self.text_color,
@@ -324,12 +329,11 @@ class ProfilerDataTree(QTreeWidget, SpyderWidgetMixin):
             'constructor': self.create_icon('class')
         }
         self.profdata = None   # To be filled by self.load_data()
-        self.stats = None      # To be filled by self.load_data()
         self.item_depth = None
         self.item_list = None
         self.items_to_be_shown = None
         self.current_view_depth = None
-        self.compare_file = None
+        self.compare_data = None
         self.setColumnCount(len(self.header_list))
         self.setHeaderLabels(self.header_list)
         self.initialize_view()
@@ -358,31 +362,32 @@ class ProfilerDataTree(QTreeWidget, SpyderWidgetMixin):
         import pstats
         # Fixes spyder-ide/spyder#6220.
         try:
-            stats_indi = [pstats.Stats(profdatafile), ]
+            self.profdata = pstats.Stats(profdatafile)
+            self.profdata.calc_callees()
         except (OSError, IOError):
             self.profdata = None
             return
-        self.profdata = stats_indi[0]
 
-        if self.compare_file is not None:
-            # Fixes spyder-ide/spyder#5587.
-            try:
-                stats_indi.append(pstats.Stats(self.compare_file))
-            except (OSError, IOError) as e:
-                QMessageBox.critical(
-                    self, _("Error"),
-                    _("Error when trying to load profiler results. "
-                      "The error was<br><br>"
-                      "<tt>{0}</tt>").format(e))
-                self.compare_file = None
-        map(lambda x: x.calc_callees(), stats_indi)
-        self.profdata.calc_callees()
-        self.stats1 = stats_indi
-        self.stats = stats_indi[0].stats
+    def compare(self, filename):
+        """Load compare file."""
 
-    def compare(self,filename):
+        if filename is None:
+            self.hide_diff_cols(True)
+            self.compare_data = None
+            return
         self.hide_diff_cols(False)
-        self.compare_file = filename
+        import pstats
+        # Fixes spyder-ide/spyder#5587.
+        try:
+            self.compare_data = pstats.Stats(filename)
+            self.compare_data.calc_callees()
+        except (OSError, IOError) as e:
+            QMessageBox.critical(
+                self, _("Error"),
+                _("Error when trying to load profiler results. "
+                  "The error was<br><br>"
+                  "<tt>{0}</tt>").format(e))
+            self.compare_data = None
 
     def hide_diff_cols(self, hide):
         for i in (2,4,6):
@@ -390,7 +395,7 @@ class ProfilerDataTree(QTreeWidget, SpyderWidgetMixin):
 
     def save_data(self, filename):
         """Save profiler data."""
-        self.stats1[0].dump_stats(filename)
+        self.profdata.dump_stats(filename)
 
     def find_root(self):
         """Find a function without a caller"""
@@ -491,7 +496,7 @@ class ProfilerDataTree(QTreeWidget, SpyderWidgetMixin):
         diff_str = ""
         color = "black"
 
-        if len(x) == 2 and self.compare_file is not None:
+        if len(x) == 2 and self.compare_data is not None:
             difference = x[0] - x[1]
             if difference:
                 color, sign = ((SpyderPalette.COLOR_SUCCESS_1, '-')
@@ -503,16 +508,18 @@ class ProfilerDataTree(QTreeWidget, SpyderWidgetMixin):
     def format_output(self, child_key):
         """ Formats the data.
 
-        self.stats1 contains a list of one or two pstat.Stats() instances, with
-        the first being the current run and the second, the saved run, if it
-        exists.  Each Stats instance is a dictionary mapping a function to
+        self.profdata and self.compare_data contains one or two pstat.Stats()
+        instances. Each Stats instance is a dictionary mapping a function to
         5 data points - cumulative calls, number of calls, total time,
         cumulative time, and callers.
 
         format_output() converts the number of calls, total time, and
         cumulative time to a string format for the child_key parameter.
         """
-        data = [x.stats.get(child_key, [0, 0, 0, 0, {}]) for x in self.stats1]
+        data = [self.profdata.stats.get(child_key, [0, 0, 0, 0, {}])]
+        if self.compare_data is not None:
+            data.append(
+                self.compare_data.stats.get(child_key, [0, 0, 0, 0, {}]))
         return (map(self.color_string, islice(zip(*data), 1, 4)))
 
     def populate_tree(self, parentItem, children_list):

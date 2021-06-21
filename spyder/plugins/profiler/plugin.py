@@ -97,8 +97,8 @@ class Profiler(SpyderDockablePlugin):
         )
 
         if ipythonconsole:
-            ipythonconsole.sig_show_profile_file.connect(
-                self.show_profile_file)
+            ipythonconsole.sig_show_profile_buffer.connect(
+                self.show_profile_buffer)
         if editor:
             self.sig_profile_file.connect(editor.profile_file)
             self.sig_profile_cell.connect(editor.profile_cell)
@@ -116,7 +116,7 @@ class Profiler(SpyderDockablePlugin):
 
     # --- Public API
     # ------------------------------------------------------------------------
-    def show_profile_file(self, filename):
+    def show_profile_buffer(self, prof_buffer):
         """
         Show profile sent by shell.
 
@@ -126,4 +126,4 @@ class Profiler(SpyderDockablePlugin):
             Path to file to analyze.
         """
         self.switch_to_plugin()
-        self.get_widget().show_profile_file(filename)
+        self.get_widget().show_profile_buffer(prof_buffer)

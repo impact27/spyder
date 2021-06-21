@@ -487,7 +487,6 @@ DEFAULTS = [
               # ---- In Pylint ----
               'pylint/run analysis': "F8",
               # ---- In Profiler ----
-              'profiler/run profiler': "F10",
               'profiler/profile file': "",
               'profiler/profile cell': "",
               # ---- In widgets/ipythonconsole/shell.py ----

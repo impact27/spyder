@@ -156,14 +156,14 @@ class IPythonConsole(SpyderPluginWidget):
         The new working directory path.
     """
 
-    sig_show_profile_file = Signal(str)
+    sig_show_profile_buffer = Signal(bytes)
     """
     This signal is emitted when a profile file is sent to a shell.
 
     Parameters
     ----------
-    filename: str
-        The profile file name.
+    file_contents: bytes
+        The profile data.
     """
 
     # Remove when this plugin is migrated
@@ -1291,7 +1291,8 @@ class IPythonConsole(SpyderPluginWidget):
         # Connect to working directory
         shellwidget.sig_change_cwd.connect(self.set_working_directory)
 
-        shellwidget.sig_show_profile_file.connect(self.sig_show_profile_file)
+        shellwidget.sig_show_profile_buffer.connect(
+            self.sig_show_profile_buffer)
 
     def close_client(self, index=None, client=None, force=False):
         """Close client tab from index or widget (or close current tab)"""

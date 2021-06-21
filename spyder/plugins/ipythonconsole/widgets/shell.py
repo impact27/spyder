@@ -19,7 +19,7 @@ from qtpy.QtCore import Signal, QThread
 from qtpy.QtWidgets import QMessageBox
 
 # Local imports
-from spyder.config.base import _, running_under_pytest, get_conf_path
+from spyder.config.base import _, running_under_pytest
 from spyder.config.manager import CONF
 from spyder.py3compat import to_text_string
 from spyder.utils import programs, encoding
@@ -53,7 +53,7 @@ class ShellWidget(NamepaceBrowserWidget, HelpWidget, DebuggingWidget,
     sig_pdb_step = Signal(str, int)
     sig_pdb_state = Signal(bool, dict)
     sig_pdb_prompt_ready = Signal()
-    sig_show_profile_file = Signal(str)
+    sig_show_profile_buffer = Signal(bytes)
 
     # For ShellWidget
     focus_changed = Signal()
@@ -112,7 +112,7 @@ class ShellWidget(NamepaceBrowserWidget, HelpWidget, DebuggingWidget,
             'do_where': self.do_where,
             'pdb_input': self.pdb_input,
             'request_interrupt_eventloop': self.request_interrupt_eventloop,
-            'show_profile_file': self.show_profile_file,
+            'show_profile_file': self.show_profile_buffer,
         }
         for request_id in handlers:
             self.spyder_kernel_comm.register_call_handler(
@@ -573,13 +573,10 @@ the sympy module (e.g. plot)
                 reset_namespace, array_inline, array_table, clear_line]
 
     # --- To communicate with the kernel
-    def show_profile_file(self, file_content):
+    def show_profile_buffer(self, file_content):
         """Save file content and show."""
         # File content is sent so this works in remote kernels
-        profile_file = get_conf_path('shell_profiler.results')
-        with open(profile_file, "bw") as f:
-            f.write(file_content)
-        self.sig_show_profile_file.emit(profile_file)
+        self.sig_show_profile_buffer.emit(file_content)
 
     def silent_execute(self, code):
         """Execute code in the kernel without increasing the prompt"""
