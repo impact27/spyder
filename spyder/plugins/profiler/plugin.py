@@ -20,8 +20,7 @@ from spyder.api.translations import get_translation
 from spyder.plugins.mainmenu.api import ApplicationMenus, RunMenuSections
 from spyder.plugins.profiler.confpage import ProfilerConfigPage
 from spyder.plugins.profiler.widgets.main_widget import (ProfilerWidget,
-                                                         ProfilerWidgetActions,
-                                                         is_profiler_installed)
+                                                         ProfilerWidgetActions)
 from spyder.plugins.run.widgets import get_run_configuration
 
 # Localization
@@ -33,7 +32,6 @@ _ = get_translation('spyder')
 class ProfilerActions:
     ProfileCurrentFile = 'profile_current_filename_action'
     ProfileCurrentCell = 'profile_current_cell_action'
-    ProfileCurrentFileInProcess = 'profile_current_filename_in_process_action'
 
 
 # --- Plugin
@@ -54,12 +52,6 @@ class Profiler(SpyderDockablePlugin):
 
     # --- Signals
     # ------------------------------------------------------------------------
-    sig_started = Signal()
-    """This signal is emitted to inform the profiling process has started."""
-
-    sig_finished = Signal()
-    """This signal is emitted to inform the profile profiling has finished."""
-
     sig_profile_file = Signal()
     """This signal is emitted to request the current file to be profiled."""
 
@@ -86,9 +78,6 @@ class Profiler(SpyderDockablePlugin):
 
         preferences.register_plugin_preferences(self)
         widget.sig_edit_goto_requested.connect(editor.load)
-        widget.sig_started.connect(self.sig_started)
-        widget.sig_finished.connect(self.sig_finished)
-
         profile_file_action = self.create_action(
             ProfilerActions.ProfileCurrentFile,
             text=_("Profile file"),
@@ -107,17 +96,6 @@ class Profiler(SpyderDockablePlugin):
             register_shortcut=True,
         )
 
-        # Could be depreciated?
-        run_action = self.create_action(
-            ProfilerActions.ProfileCurrentFileInProcess,
-            text=_("Profile in process"),
-            tip=_("Run profiler in dedicated process"),
-            icon=self.create_icon('profiler'),
-            triggered=self.run_profiler,
-            register_shortcut=True,
-        )
-        run_action.setEnabled(is_profiler_installed())
-
         if ipythonconsole:
             ipythonconsole.sig_show_profile_file.connect(
                 self.show_profile_file)
@@ -128,7 +106,7 @@ class Profiler(SpyderDockablePlugin):
         if mainmenu:
             run_menu = mainmenu.get_application_menu(ApplicationMenus.Run)
             for action in [
-                    profile_file_action, profile_cell_action, run_action]:
+                    profile_file_action, profile_cell_action]:
                 mainmenu.add_item_to_application_menu(
                     action, menu=run_menu,
                     section=RunMenuSections.Profile)
@@ -149,50 +127,3 @@ class Profiler(SpyderDockablePlugin):
         """
         self.switch_to_plugin()
         self.get_widget().show_profile_file(filename)
-
-    def run_profiler(self):
-        """
-        Run profiler.
-
-        Notes
-        -----
-        This method will check if the file on the editor can be saved first.
-        """
-        editor = self.get_plugin(Plugins.Editor)
-        if editor.save():
-            self.switch_to_plugin()
-            self.analyze(editor.get_current_filename())
-
-    def stop_profiler(self):
-        """
-        Stop profiler.
-        """
-        self.get_widget().stop()
-
-    def analyze(self, filename):
-        """
-        Run profile analysis on `filename`.
-
-        Parameters
-        ----------
-        filename: str
-            Path to file to analyze.
-        """
-        # TODO: how to get access to this in a better way?
-        pythonpath = self.main.get_spyder_pythonpath()
-
-        wdir, args = None, []
-        runconf = get_run_configuration(filename)
-        if runconf is not None:
-            if runconf.wdir_enabled:
-                wdir = runconf.wdir
-
-            if runconf.args_enabled:
-                args = runconf.args
-
-        self.get_widget().analyze(
-            filename,
-            wdir=wdir,
-            args=args,
-            pythonpath=pythonpath,
-        )
