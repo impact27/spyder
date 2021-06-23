@@ -60,6 +60,7 @@ class ShellWidget(NamepaceBrowserWidget, HelpWidget, DebuggingWidget,
     sig_pdb_step = Signal(str, int)
     sig_pdb_state_changed = Signal(bool, dict)
     sig_pdb_prompt_ready = Signal()
+    sig_show_profile_buffer = Signal(bytes)
     sig_pdb_stack = Signal(list, int)
     sig_show_traceback = Signal(object, object, list)
 
@@ -121,6 +122,7 @@ class ShellWidget(NamepaceBrowserWidget, HelpWidget, DebuggingWidget,
             'do_where': self.do_where,
             'pdb_input': self.pdb_input,
             'request_interrupt_eventloop': self.request_interrupt_eventloop,
+            'show_profile_file': self.show_profile_buffer,
             "update_matplotlib_gui": self.update_matplotlib_gui,
             'show_traceback': self.show_traceback,
         }
@@ -591,6 +593,11 @@ the sympy module (e.g. plot)
                 reset_namespace, array_inline, array_table, clear_line]
 
     # --- To communicate with the kernel
+    def show_profile_buffer(self, file_content):
+        """Save file content and show."""
+        # File content is sent so this works in remote kernels
+        self.sig_show_profile_buffer.emit(file_content)
+
     def show_traceback(self, etype, error, tb):
         """Get new traceback"""
         # Don't reset when execution finishes

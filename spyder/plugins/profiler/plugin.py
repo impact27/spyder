@@ -17,12 +17,13 @@ from qtpy.QtCore import Signal
 # Local imports
 from spyder.api.plugins import Plugins, SpyderDockablePlugin
 from spyder.api.translations import get_translation
-from spyder.plugins.mainmenu.api import ApplicationMenus
+from spyder.plugins.mainmenu.api import ApplicationMenus, RunMenuSections
 from spyder.plugins.profiler.confpage import ProfilerConfigPage
 from spyder.plugins.profiler.widgets.main_widget import (ProfilerWidget,
-                                                         ProfilerWidgetActions,
-                                                         is_profiler_installed)
+                                                         ProfilerWidgetActions)
 from spyder.plugins.run.widgets import get_run_configuration
+from spyder.plugins.ipythonconsole.utils.shellconnect import (
+    ShellConnectManager)
 
 # Localization
 _ = get_translation('spyder')
@@ -32,17 +33,18 @@ _ = get_translation('spyder')
 # ----------------------------------------------------------------------------
 class ProfilerActions:
     ProfileCurrentFile = 'profile_current_filename_action'
+    ProfileCurrentCell = 'profile_current_cell_action'
 
 
 # --- Plugin
 # ----------------------------------------------------------------------------
-class Profiler(SpyderDockablePlugin):
+class Profiler(SpyderDockablePlugin, ShellConnectManager):
     """
     Profiler (after python's profile and pstats).
     """
 
     NAME = 'profiler'
-    REQUIRES = [Plugins.Preferences, Plugins.Editor]
+    REQUIRES = [Plugins.Preferences, Plugins.Editor, Plugins.IPythonConsole]
     OPTIONAL = [Plugins.MainMenu]
     TABIFY = Plugins.Help
     WIDGET_CLASS = ProfilerWidget
@@ -52,11 +54,11 @@ class Profiler(SpyderDockablePlugin):
 
     # --- Signals
     # ------------------------------------------------------------------------
-    sig_started = Signal()
-    """This signal is emitted to inform the profiling process has started."""
+    sig_profile_file = Signal()
+    """This signal is emitted to request the current file to be profiled."""
 
-    sig_finished = Signal()
-    """This signal is emitted to inform the profile profiling has finished."""
+    sig_profile_cell = Signal()
+    """This signal is emitted to request the current cell to be profiled."""
 
     # --- SpyderDockablePlugin API
     # ------------------------------------------------------------------------
@@ -74,74 +76,41 @@ class Profiler(SpyderDockablePlugin):
         editor = self.get_plugin(Plugins.Editor)
         mainmenu = self.get_plugin(Plugins.MainMenu)
         preferences = self.get_plugin(Plugins.Preferences)
+        ipythonconsole = self.get_plugin(Plugins.IPythonConsole)
 
         preferences.register_plugin_preferences(self)
         widget.sig_edit_goto_requested.connect(editor.load)
-        widget.sig_started.connect(self.sig_started)
-        widget.sig_finished.connect(self.sig_finished)
-
-        run_action = self.create_action(
+        profile_file_action = self.create_action(
             ProfilerActions.ProfileCurrentFile,
-            text=_("Run profiler"),
-            tip=_("Run profiler"),
+            text=_("Profile file"),
+            tip=_("Profile file"),
             icon=self.create_icon('profiler'),
-            triggered=self.run_profiler,
+            triggered=self.sig_profile_file.emit,
             register_shortcut=True,
         )
-        run_action.setEnabled(is_profiler_installed())
+
+        profile_cell_action = self.create_action(
+            ProfilerActions.ProfileCurrentCell,
+            text=_("Profile cell"),
+            tip=_("Profile cell"),
+            icon=self.create_icon('profiler'),
+            triggered=self.sig_profile_cell.emit,
+            register_shortcut=True,
+        )
+
+        self.register_ipyconsole(ipythonconsole)
+
+        if editor:
+            self.sig_profile_file.connect(editor.profile_file)
+            self.sig_profile_cell.connect(editor.profile_cell)
 
         if mainmenu:
             run_menu = mainmenu.get_application_menu(ApplicationMenus.Run)
-            mainmenu.add_item_to_application_menu(run_action, menu=run_menu)
+            for action in [
+                    profile_file_action, profile_cell_action]:
+                mainmenu.add_item_to_application_menu(
+                    action, menu=run_menu,
+                    section=RunMenuSections.Profile)
 
         # TODO: On a separate PR when core plugin is merged
         # self.main.editor.pythonfile_dependent_actions += [profiler_act]
-
-    # --- Public API
-    # ------------------------------------------------------------------------
-    def run_profiler(self):
-        """
-        Run profiler.
-
-        Notes
-        -----
-        This method will check if the file on the editor can be saved first.
-        """
-        editor = self.get_plugin(Plugins.Editor)
-        if editor.save():
-            self.switch_to_plugin()
-            self.analyze(editor.get_current_filename())
-
-    def stop_profiler(self):
-        """
-        Stop profiler.
-        """
-        self.get_widget().stop()
-
-    def analyze(self, filename):
-        """
-        Run profile analysis on `filename`.
-
-        Parameters
-        ----------
-        filename: str
-            Path to file to analyze.
-        """
-        # TODO: how to get access to this in a better way?
-        pythonpath = self.main.get_spyder_pythonpath()
-
-        wdir, args = None, []
-        runconf = get_run_configuration(filename)
-        if runconf is not None:
-            if runconf.wdir_enabled:
-                wdir = runconf.wdir
-
-            if runconf.args_enabled:
-                args = runconf.args
-
-        self.get_widget().analyze(
-            filename,
-            wdir=wdir,
-            args=args,
-            pythonpath=pythonpath,
-        )

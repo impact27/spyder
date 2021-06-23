@@ -183,7 +183,7 @@ class Projects(SpyderPluginWidget):
             self.main.redirect_internalshell_stdio)
         treewidget.sig_run_requested.connect(
             lambda fname:
-            ipyconsole.run_script(fname, osp.dirname(fname), '', False, False,
+            ipyconsole.run_script(fname, osp.dirname(fname), '', False,
                                   False, True, False))
 
         # TODO: This is not necessary anymore due to us starting workspace

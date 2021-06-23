@@ -203,7 +203,7 @@ class Explorer(SpyderDockablePlugin):
                 ipyconsole.create_client_from_path)
             self.sig_run_requested.connect(
                 lambda fname:
-                ipyconsole.run_script(fname, osp.dirname(fname), '', False,
+                ipyconsole.run_script(fname, osp.dirname(fname), '',
                                       False, False, True, False))
 
     # ---- Public API

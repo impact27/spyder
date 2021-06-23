@@ -763,9 +763,18 @@ class IPythonConsole(SpyderPluginWidget):
                                  processevents=processevents))
             self.main.editor.breakpoints_saved.connect(
                 self.set_spyder_breakpoints)
-            self.main.editor.run_in_current_ipyclient.connect(self.run_script)
-            self.main.editor.run_cell_in_ipyclient.connect(self.run_cell)
-            self.main.editor.debug_cell_in_ipyclient.connect(self.debug_cell)
+            self.main.editor.sig_run_file_in_ipyclient.connect(
+                self.run_script)
+            self.main.editor.sig_debug_file_in_ipyclient.connect(
+                self.debug_file)
+            self.main.editor.sig_profile_file_in_ipyclient.connect(
+                self.profile_file)
+            self.main.editor.sig_run_cell_in_ipyclient.connect(
+                self.run_cell)
+            self.main.editor.sig_debug_cell_in_ipyclient.connect(
+                self.debug_cell)
+            self.main.editor.sig_profile_cell_in_ipyclient.connect(
+                self.profile_cell)
             # Connect Editor debug action with Console
             self.sig_pdb_state_changed.connect(
                 self.main.editor.update_pdb_state)
@@ -813,8 +822,9 @@ class IPythonConsole(SpyderPluginWidget):
         if client is not None:
             return client.shellwidget
 
-    def run_script(self, filename, wdir, args, debug, post_mortem,
-                   current_client, clear_variables, console_namespace):
+    def run_script(self, filename, wdir, args, post_mortem,
+                   current_client, clear_variables, console_namespace,
+                   function='runfile'):
         """Run script in current or dedicated client"""
         norm = lambda text: remove_backslashes(to_text_string(text))
 
@@ -837,8 +847,7 @@ class IPythonConsole(SpyderPluginWidget):
         if client is not None:
             # If spyder-kernels, use runfile
             if client.shellwidget.is_spyder_kernel():
-                line = "%s('%s'" % ('debugfile' if debug else 'runfile',
-                                    norm(filename))
+                line = function + "('%s'" % (norm(filename))
                 if args:
                     line += ", args='%s'" % norm(args)
                 if wdir:
@@ -848,9 +857,12 @@ class IPythonConsole(SpyderPluginWidget):
                 if console_namespace:
                     line += ", current_namespace=True"
                 line += ")"
+            elif function == "profile_file":
+                # Can't do anything
+                return
             else:  # External, non spyder-kernels, use %run
                 line = "%run "
-                if debug:
+                if function == "debugfile":
                     line += "-d "
                 line += "\"%s\"" % to_text_string(filename)
                 if args:
@@ -881,6 +893,20 @@ class IPythonConsole(SpyderPluginWidget):
                 _("No IPython console is currently available to run <b>%s</b>."
                   "<br><br>Please open a new one and try again."
                   ) % osp.basename(filename), QMessageBox.Ok)
+
+    def debug_file(self, filename, wdir, args, post_mortem,
+                   current_client, clear_variables, console_namespace):
+        """Debug current file."""
+        self.run_script(filename, wdir, args, post_mortem,
+                        current_client, clear_variables, console_namespace,
+                        function='debugfile')
+
+    def profile_file(self, filename, wdir, args, post_mortem,
+                     current_client, clear_variables, console_namespace):
+        """Profile current file."""
+        self.run_script(filename, wdir, args, post_mortem,
+                        current_client, clear_variables, console_namespace,
+                        function='profile_file')
 
     def run_cell(self, code, cell_name, filename, run_cell_copy,
                  function='runcell'):
@@ -927,6 +953,12 @@ class IPythonConsole(SpyderPluginWidget):
     def debug_cell(self, code, cell_name, filename, run_cell_copy):
         """Debug current cell."""
         self.run_cell(code, cell_name, filename, run_cell_copy, 'debugcell')
+
+    def profile_cell(self, code, cell_name, filename, run_cell_copy):
+        """Profile current cell."""
+        self.run_cell(
+            code, cell_name, filename, run_cell_copy=False,
+            function='profile_cell')
 
     def set_current_client_working_directory(self, directory):
         """Set current client working directory."""
