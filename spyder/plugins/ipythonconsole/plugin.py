@@ -47,6 +47,7 @@ from spyder.plugins.ipythonconsole.utils.style import create_qss_style
 from spyder.plugins.ipythonconsole.widgets import (
     ClientWidget, ConsoleRestartDialog, KernelConnectionDialog,
     PageControlWidget)
+from spyder.plugins.ipythonconsole.widgets.status import MatplotlibStatus
 from spyder.plugins.mainmenu.api import (
     ApplicationMenus, ConsolesMenuSections, HelpMenuSections)
 from spyder.py3compat import is_string, to_text_string, PY2, PY38_OR_MORE
@@ -210,6 +211,7 @@ class IPythonConsole(SpyderPluginWidget):
         self.css_path = CONF.get('appearance', 'css_path')
         self.run_cell_filename = None
         self.interrupt_action = None
+        self.matplotlib_status = None
 
         # Attrs for testing
         self.testing = testing
@@ -780,6 +782,13 @@ class IPythonConsole(SpyderPluginWidget):
         if not self._isvisible and self.main.historylog:
             self.main.historylog.add_history(get_conf_path('history.py'))
 
+        # Add matplotlib state to status bar
+        statusbar = self.main.get_plugin(Plugins.StatusBar)
+        if statusbar:
+            self.matplotlib_status = MatplotlibStatus(self)
+            statusbar.add_status_widget(self.matplotlib_status, 0)
+            self.matplotlib_status.register_ipyconsole(self)
+
     #------ Public API (for clients) ------------------------------------------
     def get_clients(self):
         """Return clients list"""
@@ -1303,6 +1312,11 @@ class IPythonConsole(SpyderPluginWidget):
 
         # To handle %edit magic petitions
         shellwidget.custom_edit_requested.connect(self.edit_file)
+        if self.matplotlib_status is not None:
+            shellwidget.sig_matplotlib_gui.connect(
+                lambda gui, sid=id(shellwidget):
+                    self.matplotlib_status.update_matplotlib_gui(
+                        gui, sid))
 
         # Set shell cwd according to preferences
         cwd_path = ''
