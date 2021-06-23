@@ -787,18 +787,7 @@ class IPythonConsole(SpyderPluginWidget):
         if statusbar:
             self.matplotlib_status = MatplotlibStatus(self)
             statusbar.add_status_widget(self.matplotlib_status, 0)
-            self.sig_shellwidget_process_started.connect(
-                self.matplotlib_status.add_shellwidget)
-            self.sig_shellwidget_process_finished.connect(
-                self.matplotlib_status.remove_shellwidget)
-            self.sig_shellwidget_external_connect.connect(
-                lambda shellwidget:
-                    self.matplotlib_status.add_shellwidget(
-                        shellwidget, external=True))
-            self.sig_shellwidget_external_disconnect.connect(
-                self.matplotlib_status.remove_shellwidget)
-            self.sig_shellwidget_changed.connect(
-                self.matplotlib_status.set_shellwidget)
+            self.matplotlib_status.register_ipyconsole(self)
 
     #------ Public API (for clients) ------------------------------------------
     def get_clients(self):

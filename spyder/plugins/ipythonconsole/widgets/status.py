@@ -10,9 +10,11 @@ from spyder.config.base import _
 from spyder.config.manager import CONF
 from spyder.api.widgets.status import StatusBarWidget
 from spyder_kernels.utils.misc import MPL_BACKENDS_FROM_SPYDER
+from spyder.plugins.ipythonconsole.utils.shellconnect import(
+    ShellConnectManager)
 
 
-class MatplotlibStatus(StatusBarWidget):
+class MatplotlibStatus(StatusBarWidget, ShellConnectManager):
     """Status bar widget for current matplotlib mode."""
 
     ID = "matplotlib_status"
@@ -58,7 +60,7 @@ class MatplotlibStatus(StatusBarWidget):
         self._gui = gui
         self.set_value(_("Matplotlib: {}").format(gui))
 
-    def add_shellwidget(self, shellwidget, external=False):
+    def add_shellwidget(self, shellwidget, external):
         """Add shellwidget."""
         backend = MPL_BACKENDS_FROM_SPYDER[
             str(CONF.get('ipython_console', 'pylab/backend'))]
@@ -87,7 +89,7 @@ class MatplotlibStatus(StatusBarWidget):
             self.update(self._shellwidget_dict[shellwidget_id]["gui"])
             self._current_id = shellwidget_id
 
-    def remove_shellwidget(self, shellwidget):
+    def remove_shellwidget(self, shellwidget, external):
         """Remove shellwidget."""
         shellwidget_id = id(shellwidget)
         if shellwidget_id in self._shellwidget_dict:
