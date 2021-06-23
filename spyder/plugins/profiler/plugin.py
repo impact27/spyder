@@ -22,6 +22,8 @@ from spyder.plugins.profiler.confpage import ProfilerConfigPage
 from spyder.plugins.profiler.widgets.main_widget import (ProfilerWidget,
                                                          ProfilerWidgetActions)
 from spyder.plugins.run.widgets import get_run_configuration
+from spyder.plugins.ipythonconsole.utils.shellconnect import (
+    ShellConnectManager)
 
 # Localization
 _ = get_translation('spyder')
@@ -36,14 +38,14 @@ class ProfilerActions:
 
 # --- Plugin
 # ----------------------------------------------------------------------------
-class Profiler(SpyderDockablePlugin):
+class Profiler(SpyderDockablePlugin, ShellConnectManager):
     """
     Profiler (after python's profile and pstats).
     """
 
     NAME = 'profiler'
-    REQUIRES = [Plugins.Preferences, Plugins.Editor]
-    OPTIONAL = [Plugins.MainMenu, Plugins.IPythonConsole]
+    REQUIRES = [Plugins.Preferences, Plugins.Editor, Plugins.IPythonConsole]
+    OPTIONAL = [Plugins.MainMenu]
     TABIFY = Plugins.Help
     WIDGET_CLASS = ProfilerWidget
     CONF_SECTION = NAME
@@ -96,9 +98,8 @@ class Profiler(SpyderDockablePlugin):
             register_shortcut=True,
         )
 
-        if ipythonconsole:
-            ipythonconsole.sig_show_profile_buffer.connect(
-                self.show_profile_buffer)
+        self.register_ipyconsole(ipythonconsole)
+
         if editor:
             self.sig_profile_file.connect(editor.profile_file)
             self.sig_profile_cell.connect(editor.profile_cell)
@@ -113,17 +114,3 @@ class Profiler(SpyderDockablePlugin):
 
         # TODO: On a separate PR when core plugin is merged
         # self.main.editor.pythonfile_dependent_actions += [profiler_act]
-
-    # --- Public API
-    # ------------------------------------------------------------------------
-    def show_profile_buffer(self, prof_buffer):
-        """
-        Show profile sent by shell.
-
-        Parameters
-        ----------
-        filename: str
-            Path to file to analyze.
-        """
-        self.switch_to_plugin()
-        self.get_widget().show_profile_buffer(prof_buffer)

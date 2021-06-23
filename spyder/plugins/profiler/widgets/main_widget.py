@@ -38,6 +38,8 @@ from spyder.py3compat import to_text_string
 from spyder.utils.misc import getcwd_or_home
 from spyder.utils.palette import SpyderPalette, QStylePalette
 from spyder.utils.qthelpers import get_item_user_text, set_item_user_text
+from spyder.plugins.ipythonconsole.utils.shellconnect import (
+    StackedShellConnectWidget)
 
 # Localization
 _ = get_translation('spyder')
@@ -106,7 +108,7 @@ def gettime_s(text):
 
 # --- Widgets
 # ----------------------------------------------------------------------------
-class ProfilerWidget(PluginMainWidget):
+class ProfilerWidget(StackedShellConnectWidget):
     """
     Profiler widget.
     """
@@ -135,25 +137,12 @@ class ProfilerWidget(PluginMainWidget):
         self.text_color = self.get_conf('text_color')
 
         # Widgets
-        self.datatree = ProfilerDataTree(self)
         self.datelabel = QLabel()
-
-        # Layout
-        layout = QVBoxLayout()
-        layout.addWidget(self.datatree)
-        self.setLayout(layout)
-
-        # Signals
-        self.datatree.sig_edit_goto_requested.connect(
-            self.sig_edit_goto_requested)
 
     # --- PluginMainWidget API
     # ------------------------------------------------------------------------
     def get_title(self):
         return _('Profiler')
-
-    def get_focus_widget(self):
-        return self.datatree
 
     def setup(self):
         self.collapse_action = self.create_action(
@@ -161,14 +150,14 @@ class ProfilerWidget(PluginMainWidget):
             text=_('Collapse'),
             tip=_('Collapse one level up'),
             icon=self.create_icon('collapse'),
-            triggered=lambda x=None: self.datatree.change_view(-1),
+            triggered=lambda x=None: self.current_widget().change_view(-1),
         )
         self.expand_action = self.create_action(
             ProfilerWidgetActions.Expand,
             text=_('Expand'),
             tip=_('Expand one level down'),
             icon=self.create_icon('expand'),
-            triggered=lambda x=None: self.datatree.change_view(1),
+            triggered=lambda x=None: self.current_widget().change_view(1),
         )
         self.save_action = self.create_action(
             ProfilerWidgetActions.SaveData,
@@ -221,23 +210,7 @@ class ProfilerWidget(PluginMainWidget):
         )
 
         if filename:
-            self.datatree.save_data(filename)
-
-    def show_profile_buffer(self, prof_buffer):
-        """Show profile file."""
-        if not prof_buffer:
-            return
-        temp = tempfile.NamedTemporaryFile(delete=False)
-        temp.write(prof_buffer)
-        filename = temp.name
-        # Release the file (Important on Window to avoid file locks)
-        temp.close()
-        # Open again
-        self.load_data(filename)
-        # Delete
-        os.unlink(filename)
-        # Show
-        self.datatree.show_tree()
+            self.current_widget().save_data(filename)
 
     def compare(self):
         """Compare previous saved run with last run."""
@@ -249,31 +222,32 @@ class ProfilerWidget(PluginMainWidget):
         )
 
         if filename:
-            if self.datatree.profdata is None:
-                self.load_data(filename)
-            self.datatree.compare(filename)
-            self.datatree.show_tree()
+            if self.current_widget().profdata is None:
+                self.current_widget().load_data(filename)
+            self.current_widget().compare(filename)
+            self.current_widget().show_tree()
             self.clear_action.setEnabled(True)
 
     def clear(self):
         """Clear data in tree."""
-        self.datatree.compare(None)
-        self.datatree.show_tree()
+        self.current_widget().compare(None)
+        self.current_widget().show_tree()
         self.clear_action.setEnabled(False)
 
-    def load_data(self, filename):
-        """Load file."""
-        self.datelabel.setText(_('Sorting data, please wait...'))
-        QApplication.processEvents()
+    def new_widget(self, shellwidget):
+        widget = ProfilerDataTree(self)
+        widget.sig_edit_goto_requested.connect(
+            self.sig_edit_goto_requested)
+        shellwidget.sig_show_profile_buffer.connect(widget.show_profile_buffer)
+        return widget
 
-        self.datatree.load_data(filename)
+    def close_widget(self, widget):
+        widget.sig_edit_goto_requested.disconnect(
+            self.sig_edit_goto_requested)
+        widget.close()
 
-        text_style = "<span style=\'color: %s\'><b>%s </b></span>"
-        date_text = text_style % (self.text_color,
-                                  time.strftime("%Y-%m-%d %H:%M:%S",
-                                                time.localtime()))
-        self.datelabel.setText(date_text)
-
+    def switch_widget(self, nsb, old_nsb):
+        pass
 
 class TreeWidgetItem( QTreeWidgetItem ):
     def __init__(self, parent=None):
@@ -356,6 +330,22 @@ class ProfilerDataTree(QTreeWidget, SpyderWidgetMixin):
         self.item_list = []  # To be use for collapsing/expanding one level
         self.items_to_be_shown = {}
         self.current_view_depth = 0
+
+    def show_profile_buffer(self, prof_buffer):
+        """Show profile file."""
+        if not prof_buffer:
+            return
+        temp = tempfile.NamedTemporaryFile(delete=False)
+        temp.write(prof_buffer)
+        filename = temp.name
+        # Release the file (Important on Window to avoid file locks)
+        temp.close()
+        # Open again
+        self.load_data(filename)
+        # Delete
+        os.unlink(filename)
+        # Show
+        self.show_tree()
 
     def load_data(self, profdatafile):
         """Load profiler data saved by profile/cProfile module"""
