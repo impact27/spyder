@@ -23,6 +23,8 @@ from spyder.plugins.framesexplorer.widgets.framesbrowser import (
     FramesBrowser,
     FramesBrowserFinder,
     VALID_VARIABLE_CHARS)
+from spyder.plugins.ipythonconsole.utils.shellconnect import (
+    StackedShellConnectWidget)
 
 # Localization
 _ = get_translation('spyder')
@@ -67,31 +69,10 @@ class FramesExplorerContextMenuSections:
 # =============================================================================
 # ---- Widgets
 # =============================================================================
-class FramesStackedWidget(QStackedWidget):
-    # Signals
-    edit_goto = Signal((str, int, str), (str, int, str, bool))
-    sig_show_namespace = Signal(dict)
-    sig_hide_finder_requested = Signal()
-
-    def __init__(self, parent):
-        super().__init__(parent=parent)
-
-    def addWidget(self, widget):
-        """
-        Override Qt method.
-        """
-        if isinstance(widget, FramesBrowser):
-            widget.edit_goto.connect(
-                self.edit_goto)
-            widget.sig_show_namespace.connect(
-                self.sig_show_namespace)
-            widget.sig_hide_finder_requested.connect(
-                self.sig_hide_finder_requested)
-
-        super().addWidget(widget)
 
 
-class FramesExplorerWidget(PluginMainWidget):
+
+class FramesExplorerWidget(StackedShellConnectWidget):
 
     # PluginMainWidget class constants
     ENABLE_SPINNER = True
@@ -103,25 +84,11 @@ class FramesExplorerWidget(PluginMainWidget):
         super().__init__(name, plugin, parent)
 
         # Widgets
-        self._stack = FramesStackedWidget(self)
-        self._shellwidgets = {}
         self.context_menu = None
         self.empty_context_menu = None
 
         # --- Finder
         self.finder = None
-
-        # Layout
-        layout = QVBoxLayout()
-        layout.addWidget(self._stack)
-        # Note: Later with the addition of the first FramesBrowser the
-        # find/search widget is added. See 'set_current_widget'
-        self.setLayout(layout)
-
-        # Signals
-        self._stack.edit_goto.connect(self.edit_goto)
-        self._stack.sig_show_namespace.connect(self.set_namespace_view)
-        self._stack.sig_hide_finder_requested.connect(self.hide_finder)
 
     def set_namespace_view(self, view):
         self.current_widget().shellwidget.set_namespace_view(view)
@@ -227,30 +194,8 @@ class FramesExplorerWidget(PluginMainWidget):
                 section=FramesExplorerContextMenuSections.Locals,
             )
 
-    def update_style(self):
-        self._stack.setStyleSheet(
-            "FramesStackedWidget {padding: 0px; border: 0px}")
-
-    @on_conf_change
-    def on_section_conf_change(self, section):
-        for index in range(self.count()):
-            widget = self._stack.widget(index)
-            if widget:
-                widget.setup()
-
     # ---- Stack accesors
     # ------------------------------------------------------------------------
-    def add_widget(self, nsb):
-        self._stack.addWidget(nsb)
-
-    def count(self):
-        return self._stack.count()
-
-    def current_widget(self):
-        return self._stack.currentWidget()
-
-    def remove_widget(self, nsb):
-        self._stack.removeWidget(nsb)
 
     def update_finder(self, nsb, old_nsb):
         """Initialize or update finder widget."""
@@ -290,7 +235,24 @@ class FramesExplorerWidget(PluginMainWidget):
                 main=nsb,
             )
 
-    def set_current_widget(self, nsb, old_nsb):
+
+
+    # ---- Public API
+    # ------------------------------------------------------------------------
+
+    def new_widget(self, shellwidget):
+        color_scheme = get_color_scheme(
+            CONF.get('appearance', 'selected'))
+        nsb = FramesBrowser(self, color_scheme=color_scheme)
+        nsb.edit_goto.connect(self.edit_goto)
+        nsb.sig_show_namespace.connect(self.set_namespace_view)
+        nsb.sig_hide_finder_requested.connect(self.hide_finder)
+        nsb.set_shellwidget(shellwidget)
+        nsb.setup()
+        self._set_actions_and_menus(nsb)
+        return nsb
+
+    def switch_widget(self, nsb, old_nsb):
         """
         Set the current FramesBrowser.
 
@@ -299,50 +261,15 @@ class FramesExplorerWidget(PluginMainWidget):
         """
         self.update_finder(nsb, old_nsb)
         finder_visible = nsb.set_text_finder(self.text_finder)
-        self._stack.setCurrentWidget(nsb)
         self.finder.setVisible(finder_visible)
         search_action = self.get_action(FramesExplorerWidgetActions.Search)
         search_action.setChecked(finder_visible)
 
-    # ---- Public API
-    # ------------------------------------------------------------------------
-    def add_shellwidget(self, shellwidget):
-        """
-        Register shell with frames explorer.
-
-        This function creates a new FramesBrowser for browsing
-        frames in the shell.
-        """
-        shellwidget_id = id(shellwidget)
-        if shellwidget_id not in self._shellwidgets:
-            old_nsb = self.current_widget()
-
-            color_scheme = get_color_scheme(
-                CONF.get('appearance', 'selected'))
-            nsb = FramesBrowser(
-                self, color_scheme=color_scheme)
-            nsb.set_shellwidget(shellwidget)
-            nsb.setup()
-            self.add_widget(nsb)
-            self._set_actions_and_menus(nsb)
-            self._shellwidgets[shellwidget_id] = nsb
-            self.set_current_widget(nsb, old_nsb)
-            self.update_actions()
-            return nsb
-
-    def remove_shellwidget(self, shellwidget):
-        shellwidget_id = id(shellwidget)
-        if shellwidget_id in self._shellwidgets:
-            nsb = self._shellwidgets.pop(shellwidget_id)
-            self.remove_widget(nsb)
-            nsb.close()
-
-    def set_shellwidget(self, shellwidget):
-        shellwidget_id = id(shellwidget)
-        old_nsb = self.current_widget()
-        if shellwidget_id in self._shellwidgets:
-            nsb = self._shellwidgets[shellwidget_id]
-            self.set_current_widget(nsb, old_nsb)
+    def close_widget(self, nsb):
+        nsb.edit_goto.disconnect(self.edit_goto)
+        nsb.sig_show_namespace.disconnect(self.set_namespace_view)
+        nsb.sig_hide_finder_requested.disconnect(self.hide_finder)
+        nsb.close()
 
     @Slot(bool)
     def show_finder(self, checked):
@@ -377,27 +304,8 @@ class FramesExplorerWidget(PluginMainWidget):
         finder_visibility = self.finder.isVisible()
         nsb.save_finder_state(last_find, finder_visibility)
 
-    def refresh(self):
-        if self.count():
-            nsb = self.current_widget()
-            nsb.refresh()
-
     def view_item_locals(self):
         self.current_widget().results_browser.view_item_locals()
-
-    def update_actions(self):
-        nsb = self.current_widget()
-
-        for __, action in self.get_actions().items():
-            if action:
-                # IMPORTANT: Since we are defining the main actions in here
-                # and the context is WidgetWithChildrenShortcut we need to
-                # assign the same actions to the children widgets in order
-                # for shortcuts to work
-                if nsb:
-                    nsb_actions = nsb.actions()
-                    if action not in nsb_actions:
-                        nsb.addAction(action)
 
     def _set_actions_and_menus(self, nsb):
         """

@@ -11,9 +11,11 @@ from spyder.api.plugins import Plugins, SpyderDockablePlugin
 from spyder.plugins.framesexplorer.confpage import FramesExplorerConfigPage
 from spyder.plugins.framesexplorer.widgets.main_widget import (
     FramesExplorerWidget)
+from spyder.plugins.ipythonconsole.utils.shellconnect import (
+    ShellConnectManager)
 
 
-class FramesExplorer(SpyderDockablePlugin):
+class FramesExplorer(SpyderDockablePlugin, ShellConnectManager):
     """Frames Explorer plugin."""
 
     NAME = 'frames_explorer'
@@ -47,15 +49,7 @@ class FramesExplorer(SpyderDockablePlugin):
         preferences.register_plugin_preferences(self)
 
         # Signals
-        ipyconsole.sig_shellwidget_changed.connect(self.set_shellwidget)
-        ipyconsole.sig_shellwidget_process_started.connect(
-            self.add_shellwidget)
-        ipyconsole.sig_shellwidget_process_finished.connect(
-            self.remove_shellwidget)
-        ipyconsole.sig_shellwidget_external_connect.connect(
-            self.add_shellwidget)
-        ipyconsole.sig_shellwidget_external_disconnect.connect(
-            self.remove_shellwidget)
+        self.register_ipyconsole(ipyconsole)
 
         if editor:
             self.get_widget().edit_goto.connect(editor.load)
@@ -66,15 +60,8 @@ class FramesExplorer(SpyderDockablePlugin):
         editor = self.get_plugin(Plugins.Editor)
 
         # Signals
-        ipyconsole.sig_shellwidget_changed.disconnect(self.set_shellwidget)
-        ipyconsole.sig_shellwidget_process_started.disconnect(
-            self.add_shellwidget)
-        ipyconsole.sig_shellwidget_process_finished.disconnect(
-            self.remove_shellwidget)
-        ipyconsole.sig_shellwidget_external_connect.disconnect(
-            self.add_shellwidget)
-        ipyconsole.sig_shellwidget_external_disconnect.disconnect(
-            self.remove_shellwidget)
+        self.unregister_ipyconsole(ipyconsole)
+
         if editor:
             self.edit_goto.disconnect(editor.load)
 
@@ -90,39 +77,3 @@ class FramesExplorer(SpyderDockablePlugin):
             FramesBrowser
         """
         return self.get_widget().current_widget()
-
-    def set_shellwidget(self, shelwidget):
-        """
-        Update the current shellwidget associated to the Frames Explorer.
-
-        Parameters
-        ----------
-        shellwidget: spyder.plugins.ipyconsole.widgets.shell.ShellWidget
-            The shell widget.
-        """
-        self.get_widget().set_shellwidget(shelwidget)
-
-    def add_shellwidget(self, shelwidget):
-        """
-        Add a new shellwidget to be registered with the Frames Explorer.
-
-        This function registers a new NamespaceBrowser for browsing variables
-        in the shellwidget.
-
-        Parameters
-        ----------
-        shellwidget: spyder.plugins.ipyconsole.widgets.shell.ShellWidget
-            The shell widget.
-        """
-        self.get_widget().add_shellwidget(shelwidget)
-
-    def remove_shellwidget(self, shelwidget):
-        """
-        Remove the shellwidget registered with the Frames Explorer.
-
-        Parameters
-        ----------
-        shellwidget: spyder.plugins.ipyconsole.widgets.shell.ShellWidget
-            The shell widget.
-        """
-        self.get_widget().remove_shellwidget(shelwidget)
