@@ -184,7 +184,7 @@ class Help(SpyderDockablePlugin):
 
     # --- Public API
     # ------------------------------------------------------------------------
-    def set_shellwidget(self, shellwidget):
+    def set_shellwidget(self, shellwidget, external=None):
         """
         Set IPython Console `shelwidget` as the current shellwidget.
 
