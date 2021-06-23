@@ -24,8 +24,8 @@ def get_caller(func):
     """
     frames = []
     for frame in inspect.stack():
-        code_context = frame.code_context[0]
-        if func in code_context:
+        code_context = frame.code_context
+        if code_context is not None and func in code_context[0]:
             frames.append(f'{frame.filename}:{frame.lineno}')
     frames = ', '.join(frames)
     return frames

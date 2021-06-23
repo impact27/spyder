@@ -293,6 +293,7 @@ spyder_plugins_entry_points = [
     'statusbar = spyder.plugins.statusbar.plugin:StatusBar',
     'toolbar = spyder.plugins.toolbar.plugin:Toolbar',
     'variable_explorer = spyder.plugins.variableexplorer.plugin:VariableExplorer',
+    'frames_explorer = spyder.plugins.framesexplorer.plugin:FramesExplorer',
     'workingdir = spyder.plugins.workingdirectory.plugin:WorkingDirectory',
 ]
 

@@ -618,6 +618,7 @@ class Plugins:
     StatusBar = 'statusbar'
     Toolbar = "toolbar"
     VariableExplorer = 'variable_explorer'
+    FramesExplorer = "frames_explorer"
     WorkingDirectory = 'workingdir'
 
 
