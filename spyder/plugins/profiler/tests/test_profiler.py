@@ -64,13 +64,13 @@ def test_color_string(profiler_datatree_bot):
     tree = profiler_datatree_bot
     cs = tree.color_string
 
-    tree.compare_file = 'test'
+    tree.compare_data = 'some stats data'
     assert cs([5.0]) == ['5.00 s', ['', 'black']]
     assert cs([1.251e-5, 1.251e-5]) == [u'12.51 \u03BCs', ['', 'black']]
     assert cs([5.0, 4.0]) == ['5.00 s', ['+1000.00 ms', ERROR]]
     assert cs([4.0, 5.0]) == ['4.00 s', ['-1000.00 ms', SUCESS]]
 
-    tree.compare_file = None
+    tree.compare_data = None
     assert cs([4.0, 5.0]) == ['4.00 s', ['', 'black']]
 
 
@@ -83,15 +83,15 @@ def test_format_output(profiler_datatree_bot):
     class Stats:
         stats = {}
 
-    tree.stats1 = [Stats(), Stats()]
-    tree.stats1[0].stats = {('key1'): (1, 1000, 3.5, 1.5, {}),
-                            ('key2'): (1, 1200, 2.0, 2.0, {})
-                            }
-    tree.stats1[1].stats = {('key1'): (1, 1000, 3.7, 1.3, {}),
-                            ('key2'): (1, 1199, 2.4, 2.4, {})
-                            }
+    tree.profdata = Stats()
+    tree.profdata.stats = {('key1'): (1, 1000, 3.5, 1.5, {}),
+                           ('key2'): (1, 1200, 2.0, 2.0, {})
+                           }
+    tree.compare_data = Stats()
+    tree.compare_data.stats = {('key1'): (1, 1000, 3.7, 1.3, {}),
+                               ('key2'): (1, 1199, 2.4, 2.4, {})
+                               }
 
-    tree.compare_file = 'test'
     assert list((fo('key1'))) == [['1000', ['', 'black']],
                                   ['3.50 s', ['-200.00 ms', SUCESS]],
                                   ['1.50 s', ['+200.00 ms', ERROR]]]
