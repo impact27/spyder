@@ -74,7 +74,8 @@ class FindInFiles(SpyderDockablePlugin):
         editor = self.get_plugin(Plugins.Editor)
         widget.sig_edit_goto_requested.connect(
             lambda filename, lineno, search_text, colno, colend: editor.load(
-                filename, lineno, start_column=colno, end_column=colend))
+                filename, lineno, start_column=colno, end_column=colend,
+                weak_open=True))
         editor.sig_file_opened_closed_or_updated.connect(
             self.set_current_opened_file)
 

@@ -611,6 +611,8 @@ class CodeEditor(TextEditBaseWidget):
         self._rehighlight_timer.setSingleShot(True)
         self._rehighlight_timer.setInterval(150)
 
+        self.weak_open = False
+
     # --- Helper private methods
     # ------------------------------------------------------------------------
     def process_server_requests(self):
@@ -2644,6 +2646,7 @@ class CodeEditor(TextEditBaseWidget):
     def __text_has_changed(self):
         """Text has changed, eventually clear found results highlighting"""
         self.last_change_position = self.textCursor().position()
+        self.weak_open = False
         if self.found_results:
             self.clear_found_results()
 

@@ -163,7 +163,7 @@ class IPythonConsoleWidget(PluginMainWidget):
     This signal will request to change the focus to the plugin.
     """
 
-    sig_edit_goto_requested = Signal((str, int, str), (str, int, str, bool))
+    sig_edit_goto_requested = Signal((str, int, str), (str, int, str, bool, bool))
     """
     This signal will request to open a file in a given row and column
     using a code editor.
@@ -2176,8 +2176,8 @@ class IPythonConsoleWidget(PluginMainWidget):
         # This is a unique form of the sig_edit_goto_requested signal that
         # is intended to prevent keyboard input from accidentally entering the
         # editor during repeated, rapid entry of debugging commands.
-        self.sig_edit_goto_requested[str, int, str, bool].emit(
-            fname, lineno, '', False)
+        self.sig_edit_goto_requested[str, int, str, bool, bool].emit(
+            fname, lineno, '', False, True)
         self.activateWindow()
         shellwidget._control.setFocus()
 

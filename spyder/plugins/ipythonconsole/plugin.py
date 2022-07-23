@@ -81,7 +81,7 @@ class IPythonConsole(SpyderDockablePlugin):
     This signal is emitted when the plugin focus changes.
     """
 
-    sig_edit_goto_requested = Signal((str, int, str), (str, int, str, bool))
+    sig_edit_goto_requested = Signal((str, int, str), (str, int, str, bool, bool))
     """
     This signal will request to open a file in a given row and column
     using a code editor.
@@ -228,8 +228,8 @@ class IPythonConsole(SpyderDockablePlugin):
         widget.sig_switch_to_plugin_requested.connect(self.switch_to_plugin)
         widget.sig_history_requested.connect(self.sig_history_requested)
         widget.sig_edit_goto_requested.connect(self.sig_edit_goto_requested)
-        widget.sig_edit_goto_requested[str, int, str, bool].connect(
-            self.sig_edit_goto_requested[str, int, str, bool])
+        widget.sig_edit_goto_requested[str, int, str, bool, bool].connect(
+            self.sig_edit_goto_requested[str, int, str, bool, bool])
         widget.sig_edit_new.connect(self.sig_edit_new)
         widget.sig_pdb_state_changed.connect(self.sig_pdb_state_changed)
         widget.sig_shellwidget_created.connect(self.sig_shellwidget_created)
@@ -309,7 +309,7 @@ class IPythonConsole(SpyderDockablePlugin):
     def on_editor_available(self):
         editor = self.get_plugin(Plugins.Editor)
         self.sig_edit_goto_requested.connect(editor.load)
-        self.sig_edit_goto_requested[str, int, str, bool].connect(
+        self.sig_edit_goto_requested[str, int, str, bool, bool].connect(
             self._load_file_in_editor)
         self.sig_edit_new.connect(editor.new)
         editor.breakpoints_saved.connect(self.set_spyder_breakpoints)
@@ -356,7 +356,7 @@ class IPythonConsole(SpyderDockablePlugin):
     def on_editor_teardown(self):
         editor = self.get_plugin(Plugins.Editor)
         self.sig_edit_goto_requested.disconnect(editor.load)
-        self.sig_edit_goto_requested[str, int, str, bool].disconnect(
+        self.sig_edit_goto_requested[str, int, str, bool, bool].disconnect(
             self._load_file_in_editor)
         self.sig_edit_new.disconnect(editor.new)
         editor.breakpoints_saved.disconnect(self.set_spyder_breakpoints)
@@ -404,9 +404,11 @@ class IPythonConsole(SpyderDockablePlugin):
 
     # ---- Private methods
     # -------------------------------------------------------------------------
-    def _load_file_in_editor(self, fname, lineno, word, processevents):
+    def _load_file_in_editor(
+            self, fname, lineno, word, processevents, weak_open):
         editor = self.get_plugin(Plugins.Editor)
-        editor.load(fname, lineno, word, processevents=processevents)
+        editor.load(fname, lineno, word, processevents=processevents,
+                    weak_open=weak_open)
 
     def _switch_to_editor(self):
         editor = self.get_plugin(Plugins.Editor)

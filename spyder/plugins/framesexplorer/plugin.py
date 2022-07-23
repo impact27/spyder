@@ -58,12 +58,13 @@ class FramesExplorer(SpyderDockablePlugin, ShellConnectMixin):
     @on_plugin_available(plugin=Plugins.Editor)
     def on_editor_available(self):
         editor = self.get_plugin(Plugins.Editor)
-        self.get_widget().edit_goto.connect(editor.load)
+        self.get_widget().edit_goto.connect(
+            lambda filename, lineno: editor.load(
+                filename, lineno, weak_open=True))
 
     @on_plugin_teardown(plugin=Plugins.Editor)
     def on_editor_teardown(self):
-        editor = self.get_plugin(Plugins.Editor)
-        self.get_widget().edit_goto.disconnect(editor.load)
+        self.get_widget().edit_goto.disconnect()
 
     @on_plugin_available(plugin=Plugins.VariableExplorer)
     def on_variable_explorer_available(self):

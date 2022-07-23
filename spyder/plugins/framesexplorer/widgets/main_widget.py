@@ -69,7 +69,7 @@ class FramesExplorerWidget(ShellConnectMainWidget):
     ENABLE_SPINNER = True
 
     # Signals
-    edit_goto = Signal((str, int, str), (str, int, str, bool))
+    edit_goto = Signal(str, int)
     sig_show_namespace = Signal(dict, object)
 
     def __init__(self, name=None, plugin=None, parent=None):

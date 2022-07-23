@@ -2120,7 +2120,8 @@ class Editor(SpyderPluginWidget, SpyderConfigurationObserver):
     @Slot(str, int, str, object)
     def load(self, filenames=None, goto=None, word='',
              editorwindow=None, processevents=True, start_column=None,
-             end_column=None, set_focus=True, add_where='end'):
+             end_column=None, set_focus=True, add_where='end',
+             weak_open=False):
         """
         Load a text file
         editorwindow: load in this editorwindow (useful when clicking on
@@ -2242,6 +2243,14 @@ class Editor(SpyderPluginWidget, SpyderConfigurationObserver):
         elif goto is not None and len(goto) != len(filenames):
             goto = None
 
+        # Close current file if weak open
+        current_es = self.get_current_editorstack(editorwindow)
+        if current_es is not None:
+            current_editor = current_es.get_current_editor()
+            if (current_editor is not None and current_editor.weak_open and
+                    current_editor.filename not in filenames):
+                current_es.close_file()
+
         for index, filename in enumerate(filenames):
             # -- Do not open an already opened file
             focus = set_focus and index == 0
@@ -2269,6 +2278,7 @@ class Editor(SpyderPluginWidget, SpyderConfigurationObserver):
                 self.register_widget_shortcuts(current_editor)
                 current_es.analyze_script()
                 self.__add_recent_file(filename)
+                current_editor.weak_open = weak_open
             if goto is not None:  # 'word' is assumed to be None as well
                 current_editor.go_to_line(goto[index], word=word,
                                           start_column=start_column,
