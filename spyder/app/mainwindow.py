@@ -1032,9 +1032,9 @@ class MainWindow(QMainWindow, SpyderConfigurationAccessor):
 
         # To avoid regressions. We shouldn't have loaded the modules
         # below at this point.
-        if DEV is not None:
-            assert 'pandas' not in sys.modules
-            assert 'matplotlib' not in sys.modules
+        # if DEV is not None:
+        #     assert 'pandas' not in sys.modules
+        #     assert 'matplotlib' not in sys.modules
 
         # Restore undocked plugins
         self.restore_undocked_plugins()
@@ -1797,7 +1797,7 @@ def main(options, args):
             splash.hide()
         return
 
-    ORIGINAL_SYS_EXIT()
+    # ORIGINAL_SYS_EXIT()
 
 
 if __name__ == "__main__":
