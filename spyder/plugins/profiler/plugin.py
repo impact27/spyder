@@ -78,6 +78,7 @@ class Profiler(SpyderDockablePlugin, ShellConnectMixin):
                 name=name,
                 parent=editor)
             self.main.debug_toolbar_actions += [action]
+            editor.pythonfile_dependent_actions += [action]
 
     @on_plugin_teardown(plugin=Plugins.Editor)
     def on_editor_teardown(self):
@@ -94,6 +95,7 @@ class Profiler(SpyderDockablePlugin, ShellConnectMixin):
         for name in names:
             action = widget.get_action(name)
             self.main.debug_toolbar_actions.remove(action)
+            editor.pythonfile_dependent_actions.remove(action)
 
     @on_plugin_available(plugin=Plugins.Preferences)
     def on_preferences_available(self):
