@@ -62,6 +62,11 @@ class ProfilerWidgetActions:
     Redo = "redo_action"
 
 
+class ProfilerToolbarActions:
+    ProfileCurrentFile = 'profile file'
+    ProfileCurrentCell = 'profile cell'
+
+
 class ProfilerWidgetMenus:
     EmptyContextMenu = 'empty'
     PopulatedContextMenu = 'populated'
@@ -121,6 +126,12 @@ class ProfilerWidget(ShellConnectMainWidget):
     word: str
         Word to select on given row.
     """
+
+    sig_profile_file = Signal()
+    """This signal is emitted to request the current file to be profiled."""
+
+    sig_profile_cell = Signal()
+    """This signal is emitted to request the current cell to be profiled."""
 
     def __init__(self, name=None, plugin=None, parent=None):
         super().__init__(name, plugin, parent)
@@ -274,6 +285,24 @@ class ProfilerWidget(ShellConnectMainWidget):
                 menu=self.context_menu,
                 section=ProfilerContextMenuSections.Locals,
             )
+
+        # toolbar
+        self.create_action(
+            ProfilerToolbarActions.ProfileCurrentFile,
+            text=_("Profile file"),
+            tip=_("Profile file"),
+            icon=self.create_icon('profiler'),
+            triggered=self.sig_profile_file,
+            register_shortcut=True,
+        )
+        self.create_action(
+            ProfilerToolbarActions.ProfileCurrentCell,
+            text=_("Profile cell"),
+            tip=_("Profile cell"),
+            icon=self.create_icon('profile_cell'),
+            triggered=self.sig_profile_cell,
+            register_shortcut=True,
+        )
 
     def update_actions(self):
         """Update actions."""
