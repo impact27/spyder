@@ -501,7 +501,9 @@ DEFAULTS = [
               # ---- In Pylint ----
               'pylint/run analysis': "F8",
               # ---- In Profiler ----
-              'profiler/run profiler': "F10",
+              'profiler/profile file': "F10",
+              'profiler/profile cell': "Alt+F10",
+              'profiler/find_action': "Ctrl+F",
               # ---- In widgets/ipythonconsole/shell.py ----
               'ipython_console/new tab': "Ctrl+T",
               'ipython_console/reset namespace': "Ctrl+Alt+R",

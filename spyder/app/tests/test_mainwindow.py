@@ -4902,6 +4902,9 @@ def test_print_comms(main_window, qtbot):
     # Wait until the object has appeared in the variable explorer
     qtbot.waitUntil(lambda: nsb.editor.source_model.rowCount() == 1,
                     timeout=EVAL_TIMEOUT)
+    qtbot.waitUntil(lambda: "Output from spyder call 'get_namespace_view':"
+                    in control.toPlainText(),
+                    timeout=EVAL_TIMEOUT)
 
     # Make sure the warning is printed
     assert ("Output from spyder call 'get_namespace_view':"
@@ -5039,6 +5042,111 @@ def test_add_external_plugins_to_dependencies(main_window, qtbot):
             external_names.append(name)
 
     assert 'spyder-boilerplate' in external_names
+
+
+@pytest.mark.slow
+def test_profiler(main_window, qtbot, tmpdir):
+    """Test if profiler works."""
+    ipyconsole = main_window.ipyconsole
+    shell = ipyconsole.get_current_shellwidget()
+    qtbot.waitUntil(lambda: shell._prompt_html is not None,
+                    timeout=SHELL_TIMEOUT)
+    control = ipyconsole.get_widget().get_focus_widget()
+    profiler = main_window.profiler
+    profile_tree = profiler.get_widget()
+
+    sleep_str = '<built-in method time.sleep>'
+
+    # Test simple profile
+    with qtbot.waitSignal(shell.executed):
+        shell.execute("import time")
+
+    assert len(profile_tree.current_widget().data_tree.get_items(2)) == 0
+
+    with qtbot.waitSignal(shell.executed):
+        shell.execute("%profile time.sleep(0.1)")
+    qtbot.wait(1000)
+
+    assert len(profile_tree.current_widget().data_tree.get_items(2)) == 1
+    item = profile_tree.current_widget().data_tree.get_items(2)[0].item_key[2]
+    assert item == sleep_str
+
+    # Make sure the ordering methods don't reveal the root element.
+    profile_tree.toggle_tree_action.setChecked(True)
+    assert len(profile_tree.current_widget().data_tree.get_items(0)) == 1
+    item = profile_tree.current_widget().data_tree.get_items(2)[0].item_key[2]
+    assert item == sleep_str
+    profile_tree.toggle_tree_action.setChecked(False)
+    assert len(profile_tree.current_widget().data_tree.get_items(2)) == 1
+    item = profile_tree.current_widget().data_tree.get_items(2)[0].item_key[2]
+    assert item == sleep_str
+    profile_tree.slow_local_tree()
+    assert len(profile_tree.current_widget().data_tree.get_items(0)) == 3
+
+    # Test profile_cell
+    # Write code with a cell to a file
+    code = "result = 10; fname = __file__; time.sleep(0); time.time()"
+    p = tmpdir.join("cell-test.py")
+    p.write(code)
+    main_window.editor.load(to_text_string(p))
+
+    # Execute runcell
+    with qtbot.waitSignal(shell.executed):
+        shell.execute("profile_cell" + u"(0, r'{}')".format(to_text_string(p)))
+
+    qtbot.wait(1000)
+
+    # Verify that the `result` variable is defined
+    assert shell.get_value('result') == 10
+
+    # Verify that the `fname` variable is `cell-test.py`
+    assert "cell-test.py" in shell.get_value('fname')
+
+    # Verify that two elements are in the profiler
+    # Actually 3 because globals is included too
+    assert len(profile_tree.current_widget().data_tree.get_items(2)) == 3
+
+    # Test profile_file
+    code = (
+        "import time\n"
+        "def f():\n"
+        "    g()\n"
+        "    time.sleep(1)\n"
+        "def g(stop=False):\n"
+        "    time.sleep(1)\n"
+        "    if not stop:\n"
+        "        g(True)\n"
+        "f()"
+        )
+    p = tmpdir.join("cell-test_2.py")
+    p.write(code)
+    main_window.editor.load(to_text_string(p))
+
+    with qtbot.waitSignal(shell.executed):
+        shell.execute("profile_file(r'{}')".format(to_text_string(p)))
+    qtbot.wait(1000)
+    # Check callee tree
+    profile_tree.toggle_tree_action.setChecked(False)
+    assert len(profile_tree.current_widget().data_tree.get_items(1)) == 3
+    values = ["f", sleep_str, "g"]
+    for item, val in zip(
+            profile_tree.current_widget().data_tree.get_items(1), values):
+        assert val == item.item_key[2]
+
+    # Check caller tree
+    profile_tree.toggle_tree_action.setChecked(True)
+    assert len(profile_tree.current_widget().data_tree.get_items(1)) == 3
+    values = [sleep_str, "f", "g"]
+    for item, val in zip(
+            profile_tree.current_widget().data_tree.get_items(1), values):
+        assert val == item.item_key[2]
+
+    # Check local time
+    profile_tree.slow_local_tree()
+    assert len(profile_tree.current_widget().data_tree.get_items(1)) == 11
+
+    # Check no errors happened
+    assert "error" not in control.toPlainText().lower()
 
 
 @pytest.mark.slow
