@@ -36,8 +36,8 @@ class Profiler(SpyderDockablePlugin, ShellConnectMixin):
     """
 
     NAME = 'profiler'
-    REQUIRES = [Plugins.Preferences, Plugins.Editor, Plugins.IPythonConsole]
-    OPTIONAL = [Plugins.MainMenu]
+    REQUIRES = [Plugins.Preferences, Plugins.IPythonConsole]
+    OPTIONAL = [Plugins.MainMenu, Plugins.Editor]
     TABIFY = [Plugins.Help]
     WIDGET_CLASS = ProfilerWidget
     CONF_SECTION = NAME
