@@ -65,6 +65,7 @@ class ProfilerWidgetActions:
 class ProfilerToolbarActions:
     ProfileCurrentFile = 'profile file'
     ProfileCurrentCell = 'profile cell'
+    ProfileCurrentLine = 'profile line'
 
 
 class ProfilerWidgetMenus:
@@ -132,6 +133,9 @@ class ProfilerWidget(ShellConnectMainWidget):
 
     sig_profile_cell = Signal()
     """This signal is emitted to request the current cell to be profiled."""
+
+    sig_profile_line = Signal()
+    """This signal is emitted to request the current line to be profiled."""
 
     def __init__(self, name=None, plugin=None, parent=None):
         super().__init__(name, plugin, parent)
@@ -301,6 +305,14 @@ class ProfilerWidget(ShellConnectMainWidget):
             tip=_("Profile cell"),
             icon=self.create_icon('profile_cell'),
             triggered=self.sig_profile_cell,
+            register_shortcut=True,
+        )
+        self.create_action(
+            ProfilerToolbarActions.ProfileCurrentLine,
+            text=_("Profile selection or current line"),
+            tip=_("Profile selection or current line"),
+            icon=self.create_icon('profile_selection'),
+            triggered=self.sig_profile_line,
             register_shortcut=True,
         )
 

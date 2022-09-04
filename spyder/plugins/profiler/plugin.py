@@ -68,9 +68,11 @@ class Profiler(SpyderDockablePlugin, ShellConnectMixin):
         # The editor is avilable, connect signal.
         widget.sig_profile_file.connect(self.profile_file)
         widget.sig_profile_cell.connect(self.profile_cell)
+        widget.sig_profile_line.connect(self.profile_line)
 
         for name in [ProfilerToolbarActions.ProfileCurrentFile,
-                     ProfilerToolbarActions.ProfileCurrentCell]:
+                     ProfilerToolbarActions.ProfileCurrentCell,
+                     ProfilerToolbarActions.ProfileCurrentLine,]:
             action = widget.get_action(name)
             CONF.config_shortcut(
                 action.trigger,
@@ -87,10 +89,12 @@ class Profiler(SpyderDockablePlugin, ShellConnectMixin):
         widget.sig_edit_goto_requested.disconnect(editor.load)
         widget.sig_profile_file.disconnect(self.profile_file)
         widget.sig_profile_cell.disconnect(self.profile_cell)
+        widget.sig_profile_line.disconnect(self.profile_line)
 
         names = [
             ProfilerToolbarActions.ProfileCurrentFile,
-            ProfilerToolbarActions.ProfileCurrentCell
+            ProfilerToolbarActions.ProfileCurrentCell,
+            ProfilerToolbarActions.ProfileCurrentLine,
         ]
         for name in names:
             action = widget.get_action(name)
@@ -114,6 +118,8 @@ class Profiler(SpyderDockablePlugin, ShellConnectMixin):
             ProfilerToolbarActions.ProfileCurrentFile)
         profile_cell_action = widget.get_action(
             ProfilerToolbarActions.ProfileCurrentCell)
+        profile_line_action = widget.get_action(
+            ProfilerToolbarActions.ProfileCurrentLine)
 
         self.main.run_menu_actions += [
                 MENU_SEPARATOR,
@@ -131,6 +137,10 @@ class Profiler(SpyderDockablePlugin, ShellConnectMixin):
         )
         mainmenu.remove_item_from_application_menu(
             ProfilerToolbarActions.ProfileCurrentCell,
+            menu_id=ApplicationMenus.Run
+        )
+        mainmenu.remove_item_from_application_menu(
+            ProfilerToolbarActions.ProfileCurrentLine,
             menu_id=ApplicationMenus.Run
         )
 
@@ -158,3 +168,14 @@ class Profiler(SpyderDockablePlugin, ShellConnectMixin):
         editor = self.get_plugin(Plugins.Editor)
         if editor:
             editor.run_cell(method="profile_cell")
+
+    @Slot()
+    def profile_line(self):
+        '''
+        Profile Current line.
+
+        Should only be called when an editor is avilable.
+        '''
+        editor = self.get_plugin(Plugins.Editor)
+        if editor:
+            editor.run_selection(prefix="%%profile\n")

@@ -503,6 +503,7 @@ DEFAULTS = [
               # ---- In Profiler ----
               'profiler/profile file': "F10",
               'profiler/profile cell': "Alt+F10",
+              'profiler/profile line': "",
               'profiler/find_action': "Ctrl+F",
               # ---- In widgets/ipythonconsole/shell.py ----
               'ipython_console/new tab': "Ctrl+T",
