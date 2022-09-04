@@ -12,12 +12,12 @@ Debugger Main Plugin Widget.
 from qtpy.QtCore import Signal, Slot
 
 # Local imports
+from spyder.api.shellconnect.main_widget import ShellConnectMainWidget
 from spyder.api.translations import get_translation
 from spyder.config.manager import CONF
 from spyder.config.gui import get_color_scheme
 from spyder.plugins.debugger.widgets.framesbrowser import (
     FramesBrowser, FramesBrowserState)
-from spyder.api.shellconnect.main_widget import ShellConnectMainWidget
 
 # Localization
 _ = get_translation('spyder')
@@ -46,6 +46,13 @@ class DebuggerWidgetActions:
 class DebuggerToolbarActions:
     DebugCurrentFile = 'debug file'
     DebugCurrentCell = 'debug cell'
+    DebugCurrentSelection = 'debug selection'
+
+
+class DebuggerBreakpointActions:
+    ToggleBreakpoint = 'toggle breakpoint'
+    ToggleConditionalBreakpoint = 'toggle conditional breakpoint'
+    ClearAllBreakpoints = 'clear all breakpoints'
 
 
 class DebuggerWidgetOptionsMenuSections:
@@ -84,9 +91,25 @@ class DebuggerWidget(ShellConnectMainWidget):
 
     sig_debug_file = Signal()
     """This signal is emitted to request the current file to be debugged."""
-
     sig_debug_cell = Signal()
     """This signal is emitted to request the current cell to be debugged."""
+    sig_debug_selection = Signal()
+    """This signal is emitted to request the current line to be debugged."""
+
+    sig_breakpoints_saved = Signal()
+    """Breakpoints have been saved"""
+
+    sig_toggle_breakpoints = Signal()
+    """Add or remove a breakpoint on the current line."""
+
+    sig_toggle_conditional_breakpoints = Signal()
+    """Add or remove a conditional breakpoint on the current line."""
+
+    sig_clear_all_breakpoints = Signal()
+    """Clear all breakpoints in all files."""
+
+    sig_pdb_state_changed = Signal(bool, dict)
+    """Pdb state changed"""
 
     def __init__(self, name=None, plugin=None, parent=None):
         super().__init__(name, plugin, parent)
@@ -214,6 +237,40 @@ class DebuggerWidget(ShellConnectMainWidget):
             register_shortcut=True,
         )
 
+        self.create_action(
+            DebuggerToolbarActions.DebugCurrentSelection,
+            text=_("Debug selection or current line"),
+            tip=_("Debug selection or current line"),
+            icon=self.create_icon('debug_selection'),
+            triggered=self.sig_debug_selection,
+            register_shortcut=True,
+        )
+
+        self.create_action(
+            DebuggerBreakpointActions.ToggleBreakpoint,
+            text=_("Set/Clear breakpoint"),
+            tip=_("Set/Clear breakpoint"),
+            icon=self.create_icon('breakpoint_big'),
+            triggered=self.sig_toggle_breakpoints,
+            register_shortcut=True,
+        )
+
+        self.create_action(
+            DebuggerBreakpointActions.ToggleConditionalBreakpoint,
+            text=_("Set/Edit conditional breakpoint"),
+            tip=_("Set/Edit conditional breakpoint"),
+            icon=self.create_icon('breakpoint_cond_big'),
+            triggered=self.sig_toggle_conditional_breakpoints,
+            register_shortcut=True,
+        )
+
+        self.create_action(
+            DebuggerBreakpointActions.ClearAllBreakpoints,
+            text=_("Clear breakpoints in all files"),
+            tip=_("Clear breakpoints in all files"),
+            triggered=self.sig_clear_all_breakpoints
+        )
+
         # ---- Context menu actions
         self.view_locals_action = self.create_action(
             DebuggerContextMenuActions.ViewLocalsAction,
@@ -307,8 +364,6 @@ class DebuggerWidget(ShellConnectMainWidget):
             action = self.get_action(action_name)
             action.setEnabled(pdb_prompt)
 
-
-
     # ---- ShellConnectMainWidget API
     # ------------------------------------------------------------------------
     def create_new_widget(self, shellwidget):
@@ -338,7 +393,8 @@ class DebuggerWidget(ShellConnectMainWidget):
         shellwidget.spyder_kernel_comm.register_call_handler(
             "show_traceback", widget.show_exception)
         shellwidget.sig_pdb_stack.connect(widget.set_from_pdb)
-        shellwidget.sig_config_kernel_requested.connect(widget.enable_pdb_stack)
+        shellwidget.sig_config_kernel_requested.connect(
+            widget.on_config_kernel)
 
         widget.setup()
         widget.set_context_menu(
@@ -347,6 +403,9 @@ class DebuggerWidget(ShellConnectMainWidget):
         )
 
         widget.results_browser.view_locals_action = self.view_locals_action
+        self.sig_breakpoints_saved.connect(widget.set_breakpoints)
+
+        shellwidget.sig_pdb_state_changed.connect(self.sig_pdb_state_changed)
         return widget
 
     def switch_widget(self, widget, old_widget):
@@ -377,8 +436,12 @@ class DebuggerWidget(ShellConnectMainWidget):
         shellwidget.spyder_kernel_comm.register_call_handler(
             "show_traceback", None)
         shellwidget.sig_pdb_stack.disconnect(widget.set_from_pdb)
-        shellwidget.sig_config_kernel_requested.disconnect(widget.enable_pdb_stack)
-        widget.disable_pdb_stack()
+        shellwidget.sig_config_kernel_requested.disconnect(
+            widget.on_config_kernel)
+        widget.on_unconfig_kernel()
+        self.sig_breakpoints_saved.disconnect(widget.set_breakpoints)
+        shellwidget.sig_pdb_state_changed.disconnect(
+            self.sig_pdb_state_changed)
 
         widget.close()
         widget.setParent(None)

@@ -181,19 +181,6 @@ class IPythonConsoleWidget(PluginMainWidget):
         Path to file.
     """
 
-    sig_pdb_state_changed = Signal(bool, dict)
-    """
-    This signal is emitted when the debugging state changes.
-
-    Parameters
-    ----------
-    waiting_pdb_input: bool
-        If the debugging session is waiting for input.
-    pdb_last_step: dict
-        Dictionary with the information of the last step done
-        in the debugging session.
-    """
-
     sig_shellwidget_created = Signal(object)
     """
     This signal is emitted when a shellwidget is created.
@@ -317,10 +304,9 @@ class IPythonConsoleWidget(PluginMainWidget):
 
         layout = QVBoxLayout()
         layout.setSpacing(0)
-        self.tabwidget = Tabs(self, menu=self._options_menu,
-                              actions=self.menu_actions,
-                              rename_tabs=True,
-                              split_char='/', split_index=0)
+
+        self.tabwidget = Tabs(self, rename_tabs=True, split_char='/',
+                              split_index=0)
         if (hasattr(self.tabwidget, 'setDocumentMode')
                 and not sys.platform == 'darwin'):
             # Don't set document mode to true on OSX because it generates
@@ -607,9 +593,9 @@ class IPythonConsoleWidget(PluginMainWidget):
         self.time_label = QLabel("")
 
         # Add tab corner widgets.
+        self.add_corner_widget('timer', self.time_label)
         self.add_corner_widget('reset', self.reset_button)
         self.add_corner_widget('start_interrupt', self.stop_button)
-        self.add_corner_widget('timer', self.time_label)
 
         # Create IPython documentation menu
         self.ipython_menu = self.create_menu(
@@ -775,43 +761,6 @@ class IPythonConsoleWidget(PluginMainWidget):
                 client,
                 client.shellwidget.set_autocall,
                 value)
-
-    # ---- Debugging options
-    @on_conf_change(section='debugger', option='pdb_ignore_lib')
-    def change_clients_pdb_ignore_lib(self, value):
-        for client in self.clients:
-            client.shellwidget.set_pdb_configuration({
-                'pdb_ignore_lib': value
-            })
-
-    @on_conf_change(section='debugger', option='pdb_execute_events')
-    def change_clients_pdb_execute_events(self, value):
-        for client in self.clients:
-            client.shellwidget.set_pdb_configuration({
-                'pdb_execute_events': value
-            })
-
-    @on_conf_change(section='debugger', option='pdb_use_exclamation_mark')
-    def change_clients_pdb_use_exclamation_mark(self, value):
-        for client in self.clients:
-            client.shellwidget.set_pdb_configuration({
-                'pdb_use_exclamation_mark': value
-            })
-
-    @on_conf_change(section='debugger', option='pdb_stop_first_line')
-    def change_clients_pdb_stop_first_line(self, value):
-        for client in self.clients:
-            client.shellwidget.set_pdb_configuration({
-                'pdb_stop_first_line': value
-            })
-
-    def set_spyder_breakpoints(self):
-        """Set Spyder breakpoints into all clients"""
-        for cl in self.clients:
-            cl.shellwidget.set_pdb_configuration({
-                'breakpoints': self.get_conf(
-                    'breakpoints', default={}, section='run')
-            })
 
     @on_conf_change(option=[
         'symbolic_math', 'hide_cmd_windows',
@@ -1162,7 +1111,7 @@ class IPythonConsoleWidget(PluginMainWidget):
 
         if client:
             sw = client.shellwidget
-            self.sig_pdb_state_changed.emit(
+            sw.sig_pdb_state_changed.emit(
                 sw.is_waiting_pdb_input(), sw.get_pdb_last_step())
             self.sig_shellwidget_changed.emit(sw)
 
@@ -1816,7 +1765,6 @@ class IPythonConsoleWidget(PluginMainWidget):
         shellwidget.sig_pdb_step.connect(
             lambda fname, lineno, shellwidget=shellwidget:
             self.pdb_has_stopped(fname, lineno, shellwidget))
-        shellwidget.sig_pdb_state_changed.connect(self.sig_pdb_state_changed)
 
         # To handle %edit magic petitions
         shellwidget.custom_edit_requested.connect(self.edit_file)
@@ -2174,19 +2122,6 @@ class IPythonConsoleWidget(PluginMainWidget):
             return sw.get_pdb_last_step()
         return {}
 
-    def check_pdb_state(self):
-        """
-        Check if actions need to be taken checking the last pdb state.
-        """
-        pdb_state = self.get_pdb_state()
-        if pdb_state:
-            pdb_last_step = self.get_pdb_last_step()
-            sw = self.get_current_shellwidget()
-            if 'fname' in pdb_last_step and sw is not None:
-                fname = pdb_last_step['fname']
-                line = pdb_last_step['lineno']
-                self.pdb_has_stopped(fname, line, sw)
-
     def print_debug_file_msg(self):
         """Print message in the current console when a file can't be closed."""
         debug_msg = _('The current file cannot be closed because it is '
@@ -2230,13 +2165,11 @@ class IPythonConsoleWidget(PluginMainWidget):
             # External kernels and run_cell_copy, just execute the code
             else:
                 # Can not use custom function on non-spyder kernels
-                QMessageBox.warning(
-                    self,
-                    _('Warning'),
-                    _("The client is not a spyder-kernel "
-                      "to run <b>{}</b>.<br><br>Please Use a spyder-kernel."
-                      ).format(method),
-                    QMessageBox.Ok
+                client.shellwidget.append_html_message(
+                    _("The console is not running a Spyder-kernel, so it "
+                      "can't execute <b>{}</b>.<br><br>"
+                      "Please use a Spyder-kernel for this.").format(method),
+                    before_prompt=True
                 )
                 return
 
@@ -2319,13 +2252,11 @@ class IPythonConsoleWidget(PluginMainWidget):
                 if args:
                     line += " %s" % norm(args)
             else:
-                QMessageBox.warning(
-                    self,
-                    _('Warning'),
-                    _("The client is not a spyder-kernel "
-                      "to run <b>{}</b>.<br><br>Please Use a spyder-kernel."
-                      ).format(method),
-                    QMessageBox.Ok
+                client.shellwidget.append_html_message(
+                    _("The console is not running a Spyder-kernel, so it "
+                      "can't execute <b>{}</b>.<br><br>"
+                      "Please use a Spyder-kernel for this.").format(method),
+                    before_prompt=True
                 )
                 return
 
