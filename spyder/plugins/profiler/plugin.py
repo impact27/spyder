@@ -16,13 +16,14 @@ from spyder.api.plugins import Plugins, SpyderDockablePlugin
 from spyder.api.plugin_registration.decorators import (
     on_plugin_available, on_plugin_teardown)
 from spyder.api.translations import get_translation
-from spyder.plugins.mainmenu.api import ApplicationMenus
+from spyder.plugins.mainmenu.api import ApplicationMenus, RunMenuSections
 from spyder.plugins.profiler.confpage import ProfilerConfigPage
 from spyder.plugins.profiler.widgets.main_widget import (
     ProfilerWidget, ProfilerToolbarActions)
 from spyder.api.shellconnect.mixins import ShellConnectMixin
 from spyder.utils.qthelpers import MENU_SEPARATOR
 from spyder.config.manager import CONF
+from spyder.plugins.toolbar.api import ApplicationToolbars
 
 # Localization
 _ = get_translation('spyder')
@@ -37,7 +38,7 @@ class Profiler(SpyderDockablePlugin, ShellConnectMixin):
 
     NAME = 'profiler'
     REQUIRES = [Plugins.Preferences, Plugins.IPythonConsole]
-    OPTIONAL = [Plugins.MainMenu, Plugins.Editor]
+    OPTIONAL = [Plugins.MainMenu, Plugins.Editor,  Plugins.Toolbar]
     TABIFY = [Plugins.Help]
     WIDGET_CLASS = ProfilerWidget
     CONF_SECTION = NAME
@@ -57,7 +58,10 @@ class Profiler(SpyderDockablePlugin, ShellConnectMixin):
         return self.create_icon('profiler')
 
     def on_initialize(self):
-        pass
+        widget = self.get_widget()
+        widget.sig_profile_file.connect(self.profile_file)
+        widget.sig_profile_cell.connect(self.profile_cell)
+        widget.sig_profile_line.connect(self.profile_line)
 
     @on_plugin_available(plugin=Plugins.Editor)
     def on_editor_available(self):
@@ -65,40 +69,36 @@ class Profiler(SpyderDockablePlugin, ShellConnectMixin):
         editor = self.get_plugin(Plugins.Editor)
 
         widget.sig_edit_goto_requested.connect(editor.load)
-        # The editor is avilable, connect signal.
-        widget.sig_profile_file.connect(self.profile_file)
-        widget.sig_profile_cell.connect(self.profile_cell)
-        widget.sig_profile_line.connect(self.profile_line)
 
-        for name in [ProfilerToolbarActions.ProfileCurrentFile,
-                     ProfilerToolbarActions.ProfileCurrentCell,
-                     ProfilerToolbarActions.ProfileCurrentLine,]:
+        # Apply shortcuts to editor and add actions to pythonfile list
+        editor_shortcuts = [
+            ProfilerToolbarActions.ProfileCurrentFile,
+            ProfilerToolbarActions.ProfileCurrentCell,
+            ProfilerToolbarActions.ProfileCurrentLine,
+        ]
+        for name in editor_shortcuts:
             action = widget.get_action(name)
             CONF.config_shortcut(
                 action.trigger,
                 context=self.CONF_SECTION,
                 name=name,
                 parent=editor)
-            self.main.debug_toolbar_actions += [action]
             editor.pythonfile_dependent_actions += [action]
 
     @on_plugin_teardown(plugin=Plugins.Editor)
     def on_editor_teardown(self):
         widget = self.get_widget()
         editor = self.get_plugin(Plugins.Editor)
-        widget.sig_edit_goto_requested.disconnect(editor.load)
-        widget.sig_profile_file.disconnect(self.profile_file)
-        widget.sig_profile_cell.disconnect(self.profile_cell)
-        widget.sig_profile_line.disconnect(self.profile_line)
 
-        names = [
+        widget.sig_edit_goto_requested.disconnect(editor.load)
+
+        editor_shortcuts = [
             ProfilerToolbarActions.ProfileCurrentFile,
             ProfilerToolbarActions.ProfileCurrentCell,
             ProfilerToolbarActions.ProfileCurrentLine,
         ]
-        for name in names:
+        for name in editor_shortcuts:
             action = widget.get_action(name)
-            self.main.debug_toolbar_actions.remove(action)
             editor.pythonfile_dependent_actions.remove(action)
 
     @on_plugin_available(plugin=Plugins.Preferences)
@@ -113,36 +113,67 @@ class Profiler(SpyderDockablePlugin, ShellConnectMixin):
 
     @on_plugin_available(plugin=Plugins.MainMenu)
     def on_main_menu_available(self):
+        mainmenu = self.get_plugin(Plugins.MainMenu)
         widget = self.get_widget()
-        profile_file_action = widget.get_action(
-            ProfilerToolbarActions.ProfileCurrentFile)
-        profile_cell_action = widget.get_action(
-            ProfilerToolbarActions.ProfileCurrentCell)
-        profile_line_action = widget.get_action(
-            ProfilerToolbarActions.ProfileCurrentLine)
 
-        self.main.run_menu_actions += [
-                MENU_SEPARATOR,
-                profile_file_action,
-                profile_cell_action
-            ]
+        editor_shortcuts = [
+            ProfilerToolbarActions.ProfileCurrentFile,
+            ProfilerToolbarActions.ProfileCurrentCell,
+            ProfilerToolbarActions.ProfileCurrentLine,
+        ]
+        for name in editor_shortcuts:
+            action = widget.get_action(name)
+            mainmenu.add_item_to_application_menu(
+                action,
+                menu_id=ApplicationMenus.Run,
+                section=RunMenuSections.Profile,
+            )
 
     @on_plugin_teardown(plugin=Plugins.MainMenu)
     def on_main_menu_teardown(self):
         mainmenu = self.get_plugin(Plugins.MainMenu)
 
-        mainmenu.remove_item_from_application_menu(
+        editor_shortcuts = [
             ProfilerToolbarActions.ProfileCurrentFile,
-            menu_id=ApplicationMenus.Run
-        )
-        mainmenu.remove_item_from_application_menu(
             ProfilerToolbarActions.ProfileCurrentCell,
-            menu_id=ApplicationMenus.Run
-        )
-        mainmenu.remove_item_from_application_menu(
             ProfilerToolbarActions.ProfileCurrentLine,
-            menu_id=ApplicationMenus.Run
-        )
+        ]
+        for name in editor_shortcuts:
+            mainmenu.remove_item_from_application_menu(
+                name,
+                menu_id=ApplicationMenus.Run
+            )
+
+    @on_plugin_available(plugin=Plugins.Toolbar)
+    def on_toolbar_available(self):
+        toolbar = self.get_plugin(Plugins.Toolbar)
+        widget = self.get_widget()
+
+        editor_shortcuts = [
+            ProfilerToolbarActions.ProfileCurrentFile,
+            ProfilerToolbarActions.ProfileCurrentCell,
+            ProfilerToolbarActions.ProfileCurrentLine,
+        ]
+        for name in editor_shortcuts:
+            toolbar.add_item_to_application_toolbar(
+                widget.get_action(name),
+                toolbar_id=ApplicationToolbars.Profile
+            )
+
+    @on_plugin_teardown(plugin=Plugins.Toolbar)
+    def on_toolbar_teardown(self):
+        toolbar = self.get_plugin(Plugins.Toolbar)
+
+        editor_shortcuts = [
+            ProfilerToolbarActions.ProfileCurrentFile,
+            ProfilerToolbarActions.ProfileCurrentCell,
+            ProfilerToolbarActions.ProfileCurrentLine,
+        ]
+        for name in editor_shortcuts:
+            toolbar.remove_item_from_application_toolbar(
+                name,
+                toolbar_id=ApplicationToolbars.Profile
+            )
 
     # ---- Public API
     # ------------------------------------------------------------------------
