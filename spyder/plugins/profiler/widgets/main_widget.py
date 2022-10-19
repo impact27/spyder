@@ -423,7 +423,7 @@ class ProfilerWidget(ShellConnectMainWidget):
         widget.set_context_menu(self.context_menu)
         widget.sig_hide_finder_requested.connect(self.hide_finder)
 
-        shellwidget.spyder_kernel_comm.register_call_handler(
+        shellwidget.kernel_handler.kernel_comm.register_call_handler(
             "show_profile_file", widget.show_profile_buffer)
         widget.shellwidget = shellwidget
 
@@ -437,7 +437,7 @@ class ProfilerWidget(ShellConnectMainWidget):
         widget.sig_hide_finder_requested.disconnect(self.hide_finder)
 
         # Unregister
-        widget.shellwidget.spyder_kernel_comm.register_call_handler(
+        widget.shellwidget.kernel_handler.kernel_comm.register_call_handler(
             "show_profile_file", None)
         widget.setParent(None)
         widget.close()
