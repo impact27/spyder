@@ -260,7 +260,7 @@ class IPythonConsoleWidget(PluginMainWidget, CachedKernelMixin):
         self.run_cell_filename = None
         self.interrupt_action = None
         self.initial_conf_options = self.get_conf_options()
-        self.registered_spyder_kernel_handlers = {}
+        self.comm_handlers = {}
 
         # Disable infowidget if requested by the user
         self.enable_infowidget = True
@@ -1333,7 +1333,7 @@ class IPythonConsoleWidget(PluginMainWidget, CachedKernelMixin):
             context_menu_actions=self.context_menu_actions,
             given_name=given_name,
             give_focus=give_focus,
-            handlers=self.registered_spyder_kernel_handlers,
+            handlers=self.comm_handlers,
             initial_cwd=initial_cwd,
         )
 
@@ -1406,7 +1406,7 @@ class IPythonConsoleWidget(PluginMainWidget, CachedKernelMixin):
             additional_options=self.additional_options(),
             interpreter_versions=self.interpreter_versions(),
             context_menu_actions=self.context_menu_actions,
-            handlers=self.registered_spyder_kernel_handlers
+            handlers=self.comm_handlers
         )
 
         # add hostname for get_name
@@ -1709,7 +1709,7 @@ class IPythonConsoleWidget(PluginMainWidget, CachedKernelMixin):
         -------
         None.
         """
-        self.registered_spyder_kernel_handlers[handler_id] = handler
+        self.comm_handlers[handler_id] = handler
 
     def unregister_spyder_kernel_call_handler(self, handler_id):
         """
@@ -1726,7 +1726,7 @@ class IPythonConsoleWidget(PluginMainWidget, CachedKernelMixin):
         -------
         None.
         """
-        self.registered_spyder_kernel_handlers.pop(handler_id, None)
+        self.comm_handlers.pop(handler_id, None)
 
     @Slot()
     def restart_kernel(self, client=None, ask_before_restart=True):
@@ -1736,8 +1736,7 @@ class IPythonConsoleWidget(PluginMainWidget, CachedKernelMixin):
         if client is None:
             return
 
-        km = client.kernel_handler.kernel_manager
-        if km is None:
+        if client.shellwidget.is_external_kernel:
             client.shellwidget._append_plain_text(
                 _('Cannot restart a kernel not started by Spyder\n'),
                 before_prompt=True
@@ -1762,7 +1761,8 @@ class IPythonConsoleWidget(PluginMainWidget, CachedKernelMixin):
 
         # Get new kernel
         try:
-            kernel_handler = self.get_cached_kernel(km._kernel_spec)
+            kernel_handler = self.get_cached_kernel(
+                client.kernel_handler.kernel_spec)
         except Exception as e:
             client.show_kernel_error(e)
             return

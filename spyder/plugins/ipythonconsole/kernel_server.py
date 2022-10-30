@@ -1,3 +1,28 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Oct 26 07:16:24 2022
+
+@author: quentin
+"""
+
+# Standard library imports
+import ast
+import os
+import os.path as osp
+from subprocess import PIPE
+from threading import Lock, Thread, Queue
+import uuid
+
+# Third-party imports
+from jupyter_core.paths import jupyter_runtime_dir
+
+class KernelServer():
+    pass
+
+
+
+
 # -*- coding: utf-8 -*-
 #
 # Copyright © Spyder Project Contributors
@@ -6,79 +31,21 @@
 
 """Kernel handler."""
 
-# Standard library imports
-import ast
-import os
-import os.path as osp
-from subprocess import PIPE
-from threading import Lock
-import uuid
+"""
+local:
+    create client, comm
+    Handle fault
+    handle connection
+    keep kernel references
+    cache kernel
 
-# Third-party imports
-from jupyter_core.paths import jupyter_runtime_dir
-from qtpy.QtCore import QObject, QThread, Signal, Slot
-from zmq.ssh import tunnel as zmqtunnel
+plan: server that: (Anything done by the kernel manager)
+    1 - sends connection files
+    2 - sends std messages to frontend
+    3 - close restarter / std files
 
-# Local imports
-from spyder.api.translations import get_translation
-from spyder.plugins.ipythonconsole import (
-    SPYDER_KERNELS_MIN_VERSION, SPYDER_KERNELS_MAX_VERSION,
-    SPYDER_KERNELS_VERSION, SPYDER_KERNELS_CONDA, SPYDER_KERNELS_PIP)
-from spyder.plugins.ipythonconsole.comms.kernelcomm import KernelComm
-from spyder.plugins.ipythonconsole.utils.manager import SpyderKernelManager
-from spyder.plugins.ipythonconsole.utils.client import SpyderKernelClient
-from spyder.plugins.ipythonconsole.utils.ssh import openssh_tunnel
-from spyder.utils.programs import check_version_range
+"""
 
-
-if os.name == "nt":
-    ssh_tunnel = zmqtunnel.paramiko_tunnel
-else:
-    ssh_tunnel = openssh_tunnel
-
-
-# Localization
-_ = get_translation("spyder")
-
-PERMISSION_ERROR_MSG = _(
-    "The directory {} is not writable and it is required to create IPython "
-    "consoles. Please make it writable."
-)
-
-ERROR_SPYDER_KERNEL_VERSION = _(
-    "The Python environment or installation whose interpreter is located at"
-    "<pre>"
-    "    <tt>{0}</tt>"
-    "</pre>"
-    "doesn't have the right version of <tt>spyder-kernels</tt> installed ({1} "
-    "instead of >= {2} and < {3}). Without this module is not possible for "
-    "Spyder to create a console for you.<br><br>"
-    "You can install it by activating your environment (if necessary) and "
-    "then running in a system terminal:"
-    "<pre>"
-    "    <tt>{4}</tt>"
-    "</pre>"
-    "or"
-    "<pre>"
-    "    <tt>{5}</tt>"
-    "</pre>"
-)
-
-# For Spyder-kernels version < 3.0, where the version and executable cannot be queried
-ERROR_SPYDER_KERNEL_VERSION_OLD = _(
-    "This Python environment doesn't have the right version of "
-    "<tt>spyder-kernels</tt> installed (>= {0} and < {1}). Without this "
-    "module is not possible for Spyder to create a console for you.<br><br>"
-    "You can install it by activating your environment (if necessary) and "
-    "then running in a system terminal:"
-    "<pre>"
-    "    <tt>{2}</tt>"
-    "</pre>"
-    "or"
-    "<pre>"
-    "    <tt>{3}</tt>"
-    "</pre>"
-)
 
 
 class KernelConnectionState:
@@ -88,10 +55,8 @@ class KernelConnectionState:
     Error = 'error'
     Closed = 'closed'
 
-
-class StdThread(QThread):
+class StdThread(Thread):
     """Poll for changes in std buffers."""
-    sig_out = Signal(str)
 
     def __init__(self, parent, std_buffer):
         super().__init__(parent)
@@ -106,35 +71,10 @@ class StdThread(QThread):
                 self.sig_out.emit(txt.decode())
 
 
-class KernelHandler(QObject):
+class KernelHandler():
     """
     A class to handle the kernel in several ways and store kernel connection
     information.
-    """
-
-    sig_stdout = Signal(str)
-    """
-    A stdout message was received on the process stdout.
-    """
-
-    sig_stderr = Signal(str)
-    """
-    A stderr message was received on the process stderr.
-    """
-
-    sig_fault = Signal(str)
-    """
-    A fault message was received.
-    """
-
-    sig_kernel_is_ready = Signal()
-    """
-    The kernel is ready.
-    """
-
-    sig_kernel_connection_error = Signal()
-    """
-    The kernel raised an error while connecting.
     """
 
     def __init__(
@@ -142,27 +82,14 @@ class KernelHandler(QObject):
         connection_file,
         kernel_manager=None,
         kernel_client=None,
-        known_spyder_kernel=False,
-        hostname=None,
-        sshkey=None,
-        password=None,
     ):
         super().__init__()
         # Connection Informations
         self.connection_file = connection_file
         self.kernel_manager = kernel_manager
         self.kernel_client = kernel_client
-        self.known_spyder_kernel = known_spyder_kernel
-        self.hostname = hostname
-        self.sshkey = sshkey
-        self.password = password
         self.kernel_error_message = None
         self.connection_state = KernelConnectionState.Connecting
-
-        # Comm
-        self.kernel_comm = KernelComm()
-        self.kernel_comm.sig_comm_ready.connect(
-            self.handle_comm_ready)
 
         # Internal
         self._shutdown_thread = None
@@ -183,14 +110,9 @@ class KernelHandler(QObject):
     def connect(self):
         """Connect to shellwidget."""
         self._shellwidget_connected = True
-        # Emit signal in case the connection is already made
-        if self.connection_state in [
-                KernelConnectionState.IpykernelReady,
-                KernelConnectionState.SpyderKernelReady]:
-            self.sig_kernel_is_ready.emit()
-        elif self.connection_state == KernelConnectionState.Error:
-            self.sig_kernel_connection_error.emit()
-
+        if self.connection_state != KernelConnectionState.Connecting:
+            # Emit signal in case the connection is already made
+            self.sig_kernel_connection_state.emit()
         # Show initial io
         if self._init_stderr:
             self.sig_stderr.emit(self._init_stderr)
@@ -246,11 +168,11 @@ class KernelHandler(QObject):
                 )
                 self.connection_state = KernelConnectionState.Error
                 self.known_spyder_kernel = False
-                self.sig_kernel_connection_error.emit()
+                self.sig_kernel_connection_state.emit()
                 return
 
             self.connection_state = KernelConnectionState.IpykernelReady
-            self.sig_kernel_is_ready.emit()
+            self.sig_kernel_connection_state.emit()
             return
 
         version, pyexec = spyder_kernel_info
@@ -269,23 +191,16 @@ class KernelHandler(QObject):
                 )
                 self.known_spyder_kernel = False
                 self.connection_state = KernelConnectionState.Error
-                self.sig_kernel_connection_error.emit()
+                self.sig_kernel_connection_state.emit()
                 return
 
         self.known_spyder_kernel = True
-
-        # Open comm and wait for comm ready reply
-        self.kernel_comm.open_comm(self.kernel_client)
-
-    def handle_comm_ready(self):
-        """The kernel comm is ready"""
         self.connection_state = KernelConnectionState.SpyderKernelReady
-        self.sig_kernel_is_ready.emit()
+        self.sig_kernel_connection_state.emit()
 
     def connect_std_pipes(self):
         """Connect to std pipes."""
         self.close_std_threads()
-
         # Connect new threads
         if self.kernel_manager is None:
             return
@@ -320,7 +235,6 @@ class KernelHandler(QObject):
             self._stderr_thread.wait()
             self._stderr_thread = None
 
-    @Slot(str)
     def handle_stderr(self, err):
         """Handle stderr"""
         if self._shellwidget_connected:
@@ -328,7 +242,6 @@ class KernelHandler(QObject):
         else:
             self._init_stderr += err
 
-    @Slot(str)
     def handle_stdout(self, out):
         """Handle stdout"""
         if self._shellwidget_connected:
@@ -356,28 +269,6 @@ class KernelHandler(QObject):
             cf = os.path.join(jupyter_runtime_dir(), "kernel-%s.json" % ident)
             cf = cf if not os.path.exists(cf) else ""
         return cf
-
-    @staticmethod
-    def tunnel_to_kernel(
-        connection_info, hostname, sshkey=None, password=None, timeout=10
-    ):
-        """
-        Tunnel connections to a kernel via ssh.
-
-        Remote ports are specified in the connection info ci.
-        """
-        lports = zmqtunnel.select_random_ports(5)
-        rports = (
-            connection_info["shell_port"],
-            connection_info["iopub_port"],
-            connection_info["stdin_port"],
-            connection_info["hb_port"],
-            connection_info["control_port"],
-        )
-        remote_ip = connection_info["ip"]
-        for lp, rp in zip(lports, rports):
-            ssh_tunnel(lp, rp, hostname, remote_ip, sshkey, password, timeout)
-        return tuple(lports)
 
     @classmethod
     def new_from_spec(cls, kernel_spec):
@@ -418,88 +309,23 @@ class KernelHandler(QObject):
             connection_file=connection_file,
             kernel_manager=kernel_manager,
             kernel_client=kernel_client,
-            known_spyder_kernel=True,
         )
-
-    @classmethod
-    def from_connection_file(
-        cls, connection_file, hostname=None, sshkey=None, password=None
-    ):
-        """Create kernel for given connection file."""
-        return cls(
-            connection_file,
-            hostname=hostname,
-            sshkey=sshkey,
-            password=password,
-            kernel_client=cls.init_kernel_client(
-                connection_file,
-                hostname,
-                sshkey,
-                password
-            )
-        )
-
-    @classmethod
-    def init_kernel_client(cls, connection_file, hostname, sshkey, password):
-        """Create kernel client."""
-        kernel_client = SpyderKernelClient(
-            connection_file=connection_file
-        )
-
-        # This is needed for issue spyder-ide/spyder#9304.
-        try:
-            kernel_client.load_connection_file()
-        except Exception as e:
-            raise RuntimeError(
-                _(
-                    "An error occurred while trying to load "
-                    "the kernel connection file. The error "
-                    "was:\n\n"
-                )
-                + str(e)
-            )
-
-        if hostname is not None:
-            try:
-                connection_info = dict(
-                    ip=kernel_client.ip,
-                    shell_port=kernel_client.shell_port,
-                    iopub_port=kernel_client.iopub_port,
-                    stdin_port=kernel_client.stdin_port,
-                    hb_port=kernel_client.hb_port,
-                    control_port=kernel_client.control_port,
-                )
-
-                (
-                    kernel_client.shell_port,
-                    kernel_client.iopub_port,
-                    kernel_client.stdin_port,
-                    kernel_client.hb_port,
-                    kernel_client.control_port,
-                ) = cls.tunnel_to_kernel(
-                    connection_info, hostname, sshkey, password
-                )
-            except Exception as e:
-                raise RuntimeError(
-                    _("Could not open ssh tunnel. The error was:\n\n")
-                    + str(e)
-                )
-        return kernel_client
 
     def close(self, shutdown_kernel=True, now=False):
         """Close kernel"""
-        self.close_comm()
+        self.connection_state = KernelConnectionState.Closed
 
         if shutdown_kernel and self.kernel_manager is not None:
             km = self.kernel_manager
             km.stop_restarter()
+
             self.disconnect_std_pipes()
 
             if now:
                 km.shutdown_kernel(now=True)
                 self.after_shutdown()
             else:
-                shutdown_thread = QThread(None)
+                shutdown_thread = Thread(None)
                 shutdown_thread.run = self._thread_shutdown_kernel
                 shutdown_thread.start()
                 shutdown_thread.finished.connect(self.after_shutdown)
@@ -514,7 +340,6 @@ class KernelHandler(QObject):
     def after_shutdown(self):
         """Cleanup after shutdown"""
         self.close_std_threads()
-        self.kernel_comm.remove(only_closing=True)
         self._shutdown_thread = None
 
     def _thread_shutdown_kernel(self):
@@ -544,77 +369,3 @@ class KernelHandler(QObject):
             thread.quit()
             thread.wait()
 
-    def copy(self):
-        """Copy kernel."""
-        # Copy kernel infos
-
-        # Get new kernel_client
-        kernel_client = self.init_kernel_client(
-            self.connection_file,
-            self.hostname,
-            self.sshkey,
-            self.password,
-        )
-
-        return self.__class__(
-            connection_file=self.connection_file,
-            kernel_manager=self.kernel_manager,
-            known_spyder_kernel=self.known_spyder_kernel,
-            hostname=self.hostname,
-            sshkey=self.sshkey,
-            password=self.password,
-            kernel_client=kernel_client,
-        )
-
-    def faulthandler_setup(self, args):
-        """Setup faulthandler"""
-        self._fault_args = args
-
-    def enable_faulthandler(self):
-        """Enable faulthandler"""
-        # To display faulthandler
-        self.kernel_comm.remote_call(
-            callback=self.faulthandler_setup
-        ).enable_faulthandler()
-
-    def poll_fault_text(self):
-        """Get a fault from a previous session."""
-        if self._fault_args is None:
-            return
-        self.kernel_comm.remote_call(
-            callback=self.emit_fault_text
-        ).get_fault_text(*self._fault_args)
-        self._fault_args = None
-
-    def emit_fault_text(self, fault):
-        """Emit fault text"""
-        if not fault:
-            return
-        self.sig_fault.emit(fault)
-
-    def fault_filename(self):
-        """get fault filename"""
-        if not self._fault_args:
-            return
-        return self._fault_args[0]
-
-    def close_comm(self):
-        """Close comm"""
-        self.connection_state = KernelConnectionState.Closed
-        self.kernel_comm.close()
-
-    def reopen_comm(self):
-        """Reopen comm (following a crash)"""
-        self.kernel_comm.remove()
-        self.connection_state = KernelConnectionState.Connecting
-        self.kernel_comm.open_comm(self.kernel_client)
-
-    @property
-    def kernel_spec(self):
-        """Get current kernel spec"""
-        return self.kernel_manager._kernel_spec
-
-    @property
-    def is_external_kernel(self):
-        """Check if this is an external kernel."""
-        return self.kernel_manager is None
