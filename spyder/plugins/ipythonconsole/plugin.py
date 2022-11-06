@@ -138,16 +138,6 @@ class IPythonConsole(SpyderDockablePlugin):
         The shellwigdet.
     """
 
-    sig_external_spyder_kernel_connected = Signal(object)
-    """
-    This signal is emitted when we connect to an external Spyder kernel.
-
-    Parameters
-    ----------
-    shellwidget: spyder.plugins.ipyconsole.widgets.shell.ShellWidget
-        The shellwigdet that was connected to the kernel.
-    """
-
     sig_render_plain_text_requested = Signal(str)
     """
     This signal is emitted to request a plain text help render.
@@ -216,8 +206,6 @@ class IPythonConsole(SpyderDockablePlugin):
         widget.sig_shellwidget_created.connect(self.sig_shellwidget_created)
         widget.sig_shellwidget_deleted.connect(self.sig_shellwidget_deleted)
         widget.sig_shellwidget_changed.connect(self.sig_shellwidget_changed)
-        widget.sig_external_spyder_kernel_connected.connect(
-            self.sig_external_spyder_kernel_connected)
         widget.sig_render_plain_text_requested.connect(
             self.sig_render_plain_text_requested)
         widget.sig_render_rich_text_requested.connect(
@@ -230,7 +218,6 @@ class IPythonConsole(SpyderDockablePlugin):
         self.main.sig_pythonpath_changed.connect(self.update_path)
 
         self.sig_focus_changed.connect(self.main.plugin_focus_changed)
-        self._remove_old_std_files()
 
     @on_plugin_available(plugin=Plugins.Preferences)
     def on_preferences_available(self):
@@ -371,23 +358,6 @@ class IPythonConsole(SpyderDockablePlugin):
 
     def _on_project_closed(self):
         self.get_widget().update_active_project_path(None)
-
-    def _remove_old_std_files(self):
-        """
-        Remove std files left by previous Spyder instances.
-
-        This is only required on Windows because we can't
-        clean up std files while Spyder is running on that
-        platform.
-        """
-        if os.name == 'nt':
-            tmpdir = get_temp_dir()
-            for fname in os.listdir(tmpdir):
-                if osp.splitext(fname)[1] in ('.stderr', '.stdout', '.fault'):
-                    try:
-                        os.remove(osp.join(tmpdir, fname))
-                    except Exception:
-                        pass
 
     # ---- Public API
     # -------------------------------------------------------------------------

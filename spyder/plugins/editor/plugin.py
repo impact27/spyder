@@ -501,7 +501,8 @@ class Editor(SpyderPluginWidget, SpyderConfigurationObserver):
         if self.projects is not None:
             active_project_path = self.projects.get_active_project_path()
         if not active_project_path:
-            self.set_open_filenames()
+            filenames = self.get_open_filenames()
+            self.set_option('filenames', filenames)
         else:
             self.projects.set_project_filenames(
                 [finfo.filename for finfo in editorstack.data])
@@ -1190,8 +1191,8 @@ class Editor(SpyderPluginWidget, SpyderConfigurationObserver):
         self.switcher_manager = EditorSwitcherManager(
             self,
             self.main.switcher,
-            lambda: self.get_current_editor(),
-            lambda: self.get_current_editorstack(),
+            self.get_current_editor,
+            self.get_current_editorstack,
             section=self.get_plugin_title())
 
     def update_source_menu(self, options, **kwargs):
@@ -1464,8 +1465,7 @@ class Editor(SpyderPluginWidget, SpyderConfigurationObserver):
                                     self.exec_in_extconsole.emit(text, option))
         editorstack.sig_run_cell_in_ipyclient.connect(
             self.sig_run_cell_in_ipyclient)
-        editorstack.update_plugin_title.connect(
-                                   lambda: self.sig_update_plugin_title.emit())
+        editorstack.update_plugin_title.connect(self.sig_update_plugin_title)
         editorstack.editor_focus_changed.connect(self.save_focused_editorstack)
         editorstack.editor_focus_changed.connect(self.main.plugin_focus_changed)
         editorstack.editor_focus_changed.connect(self.sig_editor_focus_changed)
@@ -1490,9 +1490,9 @@ class Editor(SpyderPluginWidget, SpyderConfigurationObserver):
         editorstack.sig_perform_completion_request.connect(
             self.send_completion_request)
         editorstack.todo_results_changed.connect(self.todo_results_changed)
-        editorstack.update_code_analysis_actions.connect(
+        editorstack.sig_update_code_analysis_actions.connect(
             self.update_code_analysis_actions)
-        editorstack.update_code_analysis_actions.connect(
+        editorstack.sig_update_code_analysis_actions.connect(
             self.update_todo_actions)
         editorstack.refresh_file_dependent_actions.connect(
                                            self.refresh_file_dependent_actions)
@@ -2739,7 +2739,7 @@ class Editor(SpyderPluginWidget, SpyderConfigurationObserver):
         # The file is open, get cell count from editor
         return editor.get_cell_count()
 
-    def handle_current_filename(self, filename):
+    def handle_current_filename(self):
         """Get the current filename."""
         return self._get_editorstack().get_current_finfo().filename
 
@@ -3240,18 +3240,6 @@ class Editor(SpyderPluginWidget, SpyderConfigurationObserver):
         filenames = []
         filenames += [finfo.filename for finfo in editorstack.data]
         return filenames
-
-    def set_open_filenames(self):
-        """
-        Set the recent opened files on editor based on active project.
-
-        If no project is active, then editor filenames are saved, otherwise
-        the opened filenames are stored in the project config info.
-        """
-        if self.projects is not None:
-            if not self.projects.get_active_project():
-                filenames = self.get_open_filenames()
-                self.set_option('filenames', filenames)
 
     def setup_open_files(self, close_previous_files=True):
         """
