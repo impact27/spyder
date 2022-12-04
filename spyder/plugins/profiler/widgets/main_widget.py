@@ -24,6 +24,7 @@ from qtpy.QtCore import Signal
 from qtpy.QtWidgets import QLabel
 
 # Local imports
+from spyder.api.config.decorators import on_conf_change
 from spyder.api.translations import get_translation
 from spyder.utils.misc import getcwd_or_home, get_python_executable
 from spyder.utils.palette import QStylePalette
@@ -384,13 +385,18 @@ class ProfilerWidget(ShellConnectMainWidget):
 
     def save_data(self):
         """Save data."""
-        title = _( "Save profiler result")
+        title = _("Save profiler result")
         filename, _selfilter = getsavefilename(
             self,
             title,
             getcwd_or_home(),
             _("Profiler result") + " (*.Result)",
         )
+        extension = osp.splitext(filename)[1].lower()
+        if not extension:
+            # Needed to prevent trying to save a data file without extension
+            # See spyder-ide/spyder#19633
+            filename = filename + '.Result'
 
         if filename:
             self.current_widget().data_tree.save_data(filename)
