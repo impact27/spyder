@@ -192,7 +192,8 @@ DEFAULTS = [
               'pdb_execute_events': True,
               'pdb_use_exclamation_mark': True,
               'pdb_stop_first_line': True,
-              'breakpoints_panel': True,
+              'editor_debugger_panel': True,
+              'breakpoints_table_visible': False,
              }),
             ('plots',
              {
@@ -332,10 +333,6 @@ DEFAULTS = [
               'case_sensitive': False,
               'exclude_case_sensitive': False,
               'max_results': 1000,
-              }),
-            ('breakpoints',
-             {
-              'enable': True,
               }),
             ('completions',
              {
@@ -537,6 +534,7 @@ DEFAULTS = [
               'debugger/stop': "Ctrl+Shift+F12",
               'debugger/toggle breakpoint': 'F12',
               'debugger/toggle conditional breakpoint': 'Shift+F12',
+              'debugger/show breakpoint table': "",
               # ---- In widgets/plots/figurebrowser.py ----
               'plots/copy': 'Ctrl+C',
               'plots/previous figure': 'Ctrl+PgUp',

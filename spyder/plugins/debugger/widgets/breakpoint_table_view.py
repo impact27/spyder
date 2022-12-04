@@ -14,19 +14,16 @@ Breakpoint widget.
 # pylint: disable=R0911
 # pylint: disable=R0201
 
-# Standard library imports
-import sys
 
 # Third party imports
 from qtpy import PYQT5
 from qtpy.compat import to_qvariant
 from qtpy.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
-from qtpy.QtWidgets import QItemDelegate, QTableView, QVBoxLayout
+from qtpy.QtWidgets import QItemDelegate, QTableView
 
 # Local imports
 from spyder.api.translations import get_translation
-from spyder.api.widgets.main_widget import (PluginMainWidgetMenus,
-                                            PluginMainWidget)
+from spyder.api.widgets.main_widget import PluginMainWidgetMenus
 from spyder.api.widgets.mixins import SpyderWidgetMixin
 from spyder.utils.sourcecode import disambiguate_fname
 
@@ -37,11 +34,11 @@ _ = get_translation('spyder')
 
 # --- Constants
 # ----------------------------------------------------------------------------
-COLUMN_COUNT = 4
+COLUMN_COUNT = 3
 EXTRA_COLUMNS = 1
-COL_FILE, COL_LINE, COL_CONDITION, COL_BLANK, COL_FULL = list(
+COL_FILE, COL_LINE, COL_CONDITION, COL_FULL = list(
     range(COLUMN_COUNT + EXTRA_COLUMNS))
-COLUMN_HEADERS = (_("File"), _("Line"), _("Condition"), (""))
+COLUMN_HEADERS = (_("File"), _("Line"), _("Condition"))
 
 
 class BreakpointTableViewActions:
@@ -88,7 +85,7 @@ class BreakpointTableModel(QAbstractTableModel):
             for item in data[key]:
                 # Store full file name in last position, which is not shown
                 self.breakpoints.append((disambiguate_fname(files, key),
-                                         item[0], item[1], "", key))
+                                         item[0], item[1], key))
         self.reset()
 
     def rowCount(self, qindex=QModelIndex()):
@@ -113,8 +110,6 @@ class BreakpointTableModel(QAbstractTableModel):
         elif column == COL_LINE:
             pass
         elif column == COL_CONDITION:
-            pass
-        elif column == COL_BLANK:
             pass
 
         self.reset()
@@ -204,6 +199,7 @@ class BreakpointTableView(QTableView, SpyderWidgetMixin):
         self.adjust_columns()
         self.columnAt(0)
         self.horizontalHeader().setStretchLastSection(True)
+        self.verticalHeader().hide()
 
     # --- SpyderWidgetMixin API
     # ------------------------------------------------------------------------
@@ -308,123 +304,3 @@ class BreakpointTableView(QTableView, SpyderWidgetMixin):
 
             self.sig_edit_goto_requested.emit(filename, lineno, '')
             self.sig_conditional_breakpoint_requested.emit()
-
-
-class BreakpointWidget(PluginMainWidget):
-    """
-    Breakpoints widget.
-    """
-
-    # --- Signals
-    # ------------------------------------------------------------------------
-    sig_clear_all_breakpoints_requested = Signal()
-    """
-    This signal is emitted to send a request to clear all assigned
-    breakpoints.
-    """
-
-    sig_clear_breakpoint_requested = Signal(str, int)
-    """
-    This signal is emitted to send a request to clear a single breakpoint.
-
-    Parameters
-    ----------
-    filename: str
-        The path to filename cotaining the breakpoint.
-    line_number: int
-        The line number of the breakpoint.
-    """
-
-    sig_edit_goto_requested = Signal(str, int, str)
-    """
-    Send a request to open a file in the editor at a given row and word.
-
-    Parameters
-    ----------
-    filename: str
-        The path to the filename containing the breakpoint.
-    line_number: int
-        The line number of the breakpoint.
-    word: str
-        Text `word` to select on given `line_number`.
-    """
-
-    sig_conditional_breakpoint_requested = Signal()
-    """
-    Send a request to set/edit a condition on a single selected breakpoint.
-    """
-
-    def __init__(self, name=None, plugin=None, parent=None):
-        super().__init__(name, plugin, parent=parent)
-
-        # Widgets
-        self.breakpoints_table = BreakpointTableView(self, {})
-
-        # Layout
-        layout = QVBoxLayout()
-        layout.addWidget(self.breakpoints_table)
-        self.setLayout(layout)
-
-        # Signals
-        bpt = self.breakpoints_table
-        bpt.sig_clear_all_breakpoints_requested.connect(
-            self.sig_clear_all_breakpoints_requested)
-        bpt.sig_clear_breakpoint_requested.connect(
-            self.sig_clear_breakpoint_requested)
-        bpt.sig_edit_goto_requested.connect(self.sig_edit_goto_requested)
-        bpt.sig_conditional_breakpoint_requested.connect(
-            self.sig_conditional_breakpoint_requested)
-
-    # --- PluginMainWidget API
-    # ------------------------------------------------------------------------
-    def get_title(self):
-        return _('Breakpoints')
-
-    def get_focus_widget(self):
-        return self.breakpoints_table
-
-    def setup(self):
-        self.breakpoints_table.setup()
-
-    def update_actions(self):
-        rows = self.breakpoints_table.selectionModel().selectedRows()
-        c_row = rows[0] if rows else None
-
-        enabled = (bool(self.breakpoints_table.model.breakpoints)
-                   and c_row is not None)
-        clear_action = self.get_action(
-            BreakpointTableViewActions.ClearBreakpoint)
-        edit_action = self.get_action(
-            BreakpointTableViewActions.EditBreakpoint)
-        clear_action.setEnabled(enabled)
-        edit_action.setEnabled(enabled)
-
-    # --- Public API
-    # ------------------------------------------------------------------------
-    def set_data(self, data):
-        """
-        Set breakpoint data on widget.
-
-        Parameters
-        ----------
-        data: dict
-            Breakpoint data to use.
-        """
-        self.breakpoints_table.set_data(data)
-
-
-# =============================================================================
-# Tests
-# =============================================================================
-def test():
-    """Run breakpoint widget test."""
-    from spyder.utils.qthelpers import qapplication
-
-    app = qapplication()
-    widget = BreakpointWidget()
-    widget.show()
-    sys.exit(app.exec_())
-
-
-if __name__ == '__main__':
-    test()
