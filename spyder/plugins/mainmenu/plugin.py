@@ -251,7 +251,6 @@ class MainMenu(SpyderPluginV2):
             ApplicationMenus.Search: self._main.search_menu_actions,
             ApplicationMenus.Source: self._main.source_menu_actions,
             ApplicationMenus.Run: self._main.run_menu_actions,
-            ApplicationMenus.Debug: self._main.debug_menu_actions,
         }
 
         if menu_id in app_menu_actions:
@@ -308,8 +307,6 @@ class MainMenu(SpyderPluginV2):
                 self._main.source_menu_actions, self._main.source_menu),
             ApplicationMenus.Run: (
                 self._main.run_menu_actions, self._main.run_menu),
-            ApplicationMenus.Debug: (
-                self._main.debug_menu_actions, self._main.debug_menu),
         }
 
         app_menus = {
@@ -317,7 +314,6 @@ class MainMenu(SpyderPluginV2):
             ApplicationMenus.Search: self._main.search_menu,
             ApplicationMenus.Source: self._main.source_menu,
             ApplicationMenus.Run: self._main.run_menu,
-            ApplicationMenus.Debug: self._main.debug_menu
         }
 
         menu = self.get_application_menu(menu_id)

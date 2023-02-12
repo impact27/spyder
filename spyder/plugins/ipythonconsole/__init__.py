@@ -20,3 +20,8 @@ SPYDER_KERNELS_CONDA = (
     f'conda install spyder&#45;kernels={SPYDER_KERNELS_MIN_VERSION[:-2]}')
 SPYDER_KERNELS_PIP = (
     f'pip install spyder&#45;kernels=={SPYDER_KERNELS_MIN_VERSION[:-1]}*')
+
+
+class SpyderKernelError(RuntimeError):
+    """Error to be shown in client."""
+    pass

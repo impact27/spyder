@@ -9,6 +9,7 @@
 
 import ast
 import bdb
+import builtins
 import logging
 import os
 import sys
@@ -19,53 +20,43 @@ from collections import namedtuple
 from IPython.core.autocall import ZMQExitAutocall
 from IPython.core.debugger import Pdb as ipyPdb
 from IPython.core.getipython import get_ipython
+from IPython.core.inputtransformer2 import TransformerManager
 
+import spyder_kernels
 from spyder_kernels.comms.frontendcomm import CommError, frontend_request
 from spyder_kernels.customize.utils import path_is_library, capture_last_Expr
-from spyder_kernels.py3compat import (
-    TimeoutError, PY2, _print, isidentifier, PY3, input)
-
-if not PY2:
-    from IPython.core.inputtransformer2 import TransformerManager
-    import builtins
-    basestring = (str,)
-else:
-    import __builtin__ as builtins
-    from IPython.core.inputsplitter import IPythonInputSplitter as TransformerManager
 
 
 logger = logging.getLogger(__name__)
 
 
-class DebugWrapper(object):
+class DebugWrapper:
     """
     Notifies the frontend when debugging starts/stops
     """
     def __init__(self, pdb_obj):
         self.pdb_obj = pdb_obj
+        self._cleanup = True
 
     def __enter__(self):
         """
         Debugging starts.
         """
-        self.pdb_obj._frontend_notified = True
-        try:
-            frontend_request(blocking=True).set_debug_state(True)
-        except (CommError, TimeoutError):
-            logger.debug("Could not send debugging state to the frontend.")
+        shell = get_ipython()
+        if shell.pdb_session == self.pdb_obj:
+            self._cleanup = False
+        else:
+            shell.add_pdb_session(self.pdb_obj)
+            self._cleanup = True
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """
         Debugging ends.
         """
-        self.pdb_obj._frontend_notified = False
-        try:
-            frontend_request(blocking=True).set_debug_state(False)
-        except (CommError, TimeoutError):
-            logger.debug("Could not send debugging state to the frontend.")
+        if self._cleanup:
+            get_ipython().remove_pdb_session(self.pdb_obj)
 
-
-class SpyderPdb(ipyPdb, object):  # Inherits `object` to call super() in PY2
+class SpyderPdb(ipyPdb):
     """
     Extends Pdb to add features:
 
@@ -76,7 +67,6 @@ class SpyderPdb(ipyPdb, object):  # Inherits `object` to call super() in PY2
      - Add completion to non-command code.
     """
 
-    send_initial_notification = True
     starting = True
 
     def __init__(self, completekey='tab', stdin=None, stdout=None,
@@ -88,12 +78,11 @@ class SpyderPdb(ipyPdb, object):  # Inherits `object` to call super() in PY2
         self.pdb_ignore_lib = False
         self.pdb_execute_events = False
         self.pdb_use_exclamation_mark = False
+        self.pdb_publish_stack = False
         self._exclamation_warning_printed = False
         self.pdb_stop_first_line = True
         self._disable_next_stack_entry = False
         super(SpyderPdb, self).__init__()
-        self._pdb_breaking = False
-        self._frontend_notified = False
 
         # content of tuple: (filename, line number)
         self._previous_step = None
@@ -102,12 +91,18 @@ class SpyderPdb(ipyPdb, object):  # Inherits `object` to call super() in PY2
         # has no effect in previous versions.
         self.report_skipped = False
 
-
         # Keep track of remote filename
         self.remote_filename = None
 
+        # Needed to know which namespace to show (user or current frame)
         # Line received from the frontend
         self._cmd_input_line = None
+
+        # Disable sigint so we can do it ourselves
+        self.nosigint = True
+
+        # Keep track of interrupting state to avoid several interruptions
+        self.interrupting = False
 
     # --- Methods overriden for code execution
     def print_exclamation_warning(self):
@@ -226,7 +221,7 @@ class SpyderPdb(ipyPdb, object):  # Inherits `object` to call super() in PY2
                     # Load locals if they have a valid name
                     # In comprehensions, locals could contain ".0" for example
                     code += [indent + "{k} = _spyderpdb_locals['{k}']".format(
-                        k=k) for k in locals if isidentifier(k)]
+                        k=k) for k in locals if k.isidentifier()]
 
 
                     # Update the locals
@@ -275,55 +270,35 @@ class SpyderPdb(ipyPdb, object):  # Inherits `object` to call super() in PY2
                 sys.stdin = save_stdin
                 sys.displayhook = save_displayhook
         except BaseException:
-            if PY2:
-                t, v = sys.exc_info()[:2]
-                if type(t) == type(''):
-                    exc_type_name = t
-                else: exc_type_name = t.__name__
-                print >>self.stdout, '***', exc_type_name + ':', v
-            else:
-                exc_info = sys.exc_info()[:2]
-                self.error(
-                    traceback.format_exception_only(*exc_info)[-1].strip())
+            exc_info = sys.exc_info()[:2]
+            self.error(
+                traceback.format_exception_only(*exc_info)[-1].strip())
 
     # --- Methods overriden for signal handling
-    def sigint_handler(self, signum, frame):
-        """
-        Handle a sigint signal. Break on the frame above this one.
-
-        This method is not present in python2 so this won't be called there.
-        """
-        if self.allow_kbdint:
-            raise KeyboardInterrupt
+    def interrupt(self):
+        """Stop debugger on next instruction."""
+        self.interrupting = True
         self.message("\nProgram interrupted. (Use 'cont' to resume).")
-        # avoid stopping in set_trace
-        sys.settrace(None)
-        self._pdb_breaking = True
         self.set_step()
-        self.set_trace(sys._getframe())
+
+    def set_trace(self, frame=None):
+        """Register that debugger is tracing."""
+        get_ipython().add_pdb_session(self)
+        super(SpyderPdb, self).set_trace(frame)
+
+    def set_quit(self):
+        """Register that debugger is not tracing."""
+        get_ipython().remove_pdb_session(self)
+        super(SpyderPdb, self).set_quit()
 
     def interaction(self, frame, traceback):
         """
         Called when a user interaction is required.
-
-        If this is from sigint, break on the upper frame.
-        If the frame is in spydercustomize.py, quit.
-        Notifies spyder and print current code.
-
         """
-        if self._pdb_breaking:
-            self._pdb_breaking = False
-            if frame and frame.f_back:
-                return self.interaction(frame.f_back, traceback)
-
-        self.setup(frame, traceback)
-        self.print_stack_entry(self.stack[self.curindex])
-        if self._frontend_notified:
-            self._cmdloop()
-        else:
-            with DebugWrapper(self):
-                self._cmdloop()
-        self.forget()
+        with DebugWrapper(self):
+            # Wrapp in case the frontend was not notified, e.g. postmortem
+            return super(SpyderPdb, self).interaction(
+                frame, traceback)
 
     def print_stack_entry(self, frame_lineno, prompt_prefix='\n-> ',
                           context=None):
@@ -350,6 +325,9 @@ class SpyderPdb(ipyPdb, object):  # Inherits `object` to call super() in PY2
             # This is not a file
             return True
         if self.pdb_ignore_lib and path_is_library(filename):
+            return False
+        if os.path.dirname(spyder_kernels.__file__) in filename:
+            # This is spyder-kernels internals
             return False
         return True
 
@@ -421,7 +399,7 @@ class SpyderPdb(ipyPdb, object):  # Inherits `object` to call super() in PY2
             if not text or text[0] == '.':
                 return False
             # We want to keep value.subvalue
-            return isidentifier(text.replace('.', ''))
+            return text.replace('.', '').isidentifier()
 
         while text and not is_name_or_composed(text):
             text = text[1:]
@@ -524,7 +502,7 @@ class SpyderPdb(ipyPdb, object):  # Inherits `object` to call super() in PY2
                 if not text or text[0] == '.':
                     return False
                 # We want to keep value.subvalue
-                return isidentifier(text.replace('.', ''))
+                return text.replace('.', '').isidentifier()
 
             while text and not is_name_or_composed(text):
                 text = text[1:]
@@ -560,26 +538,9 @@ class SpyderPdb(ipyPdb, object):  # Inherits `object` to call super() in PY2
     # --- Methods overriden by us for Spyder integration
     def postloop(self):
         # postloop() is called when the debugger’s input prompt exists. Reset
-        # _previous_step so that publish_pdb_state() actually notifies Spyder
+        # _previous_step so that get_pdb_state() actually notifies Spyder
         # about a changed frame the next the input prompt is entered again.
         self._previous_step = None
-
-    def preloop(self):
-        """Ask Spyder for breakpoints before the first prompt is created."""
-        try:
-            pdb_settings = frontend_request(blocking=True).get_pdb_settings()
-            self.pdb_ignore_lib = pdb_settings['pdb_ignore_lib']
-            self.pdb_execute_events = pdb_settings['pdb_execute_events']
-            self.pdb_use_exclamation_mark = pdb_settings[
-                'pdb_use_exclamation_mark']
-            self.pdb_stop_first_line = pdb_settings['pdb_stop_first_line']
-            if self.starting:
-                self.set_spyder_breakpoints(pdb_settings['breakpoints'])
-            if self.send_initial_notification:
-                self.publish_pdb_state()
-        except (CommError, TimeoutError):
-            logger.debug("Could not get breakpoints from the frontend.")
-        super(SpyderPdb, self).preloop()
 
     def set_continue(self):
         """
@@ -590,13 +551,6 @@ class SpyderPdb(ipyPdb, object):  # Inherits `object` to call super() in PY2
         """
         # Don't stop except at breakpoints or when finished
         self._set_stopinfo(self.botframe, None, -1)
-
-    def reset(self):
-        """
-        Register Pdb session after reset.
-        """
-        super(SpyderPdb, self).reset()
-        get_ipython().pdb_session = self
 
     def do_debug(self, arg):
         """
@@ -609,17 +563,9 @@ class SpyderPdb(ipyPdb, object):  # Inherits `object` to call super() in PY2
         try:
             super(SpyderPdb, self).do_debug(arg)
         except Exception:
-            if PY2:
-                t, v = sys.exc_info()[:2]
-                if type(t) == type(''):
-                    exc_type_name = t
-                else: exc_type_name = t.__name__
-                print >>self.stdout, '***', exc_type_name + ':', v
-            else:
-                exc_info = sys.exc_info()[:2]
-                self.error(
-                    traceback.format_exception_only(*exc_info)[-1].strip())
-        get_ipython().pdb_session = self
+            exc_info = sys.exc_info()[:2]
+            self.error(
+                traceback.format_exception_only(*exc_info)[-1].strip())
 
     def user_return(self, frame, return_value):
         """This function is called when a return trap is set here."""
@@ -634,6 +580,7 @@ class SpyderPdb(ipyPdb, object):  # Inherits `object` to call super() in PY2
 
     def _cmdloop(self):
         """Modifies the error text."""
+        self.interrupting = False
         while True:
             try:
                 # keyboard interrupts allow for an easy way to cancel
@@ -643,10 +590,9 @@ class SpyderPdb(ipyPdb, object):  # Inherits `object` to call super() in PY2
                 self.allow_kbdint = False
                 break
             except KeyboardInterrupt:
-                _print("--KeyboardInterrupt--\n"
-                       "For copying text while debugging, use Ctrl+Shift+C",
-                       file=self.stdout)
-
+                print("--KeyboardInterrupt--\n"
+                      "For copying text while debugging, use Ctrl+Shift+C",
+                      file=self.stdout)
 
     def cmdloop(self, intro=None):
         """
@@ -690,15 +636,12 @@ class SpyderPdb(ipyPdb, object):  # Inherits `object` to call super() in PY2
 
         # Send the input request.
         self._cmd_input_line = None
-        kernel.frontend_call().pdb_input(prompt)
+        kernel.frontend_call(display_error=True).pdb_input(
+            prompt, state=self.get_pdb_state())
 
         # Allow GUI event loop to update
-        if PY3:
-            is_main_thread = (
-                threading.current_thread() is threading.main_thread())
-        else:
-            is_main_thread = isinstance(
-                threading.current_thread(), threading._MainThread)
+        is_main_thread = (
+            threading.current_thread() is threading.main_thread())
 
         # Get input by running eventloop
         if is_main_thread and kernel.eventloop:
@@ -744,41 +687,7 @@ class SpyderPdb(ipyPdb, object):  # Inherits `object` to call super() in PY2
         # Flush in case the command produced output on underlying outputs
         sys.__stderr__.flush()
         sys.__stdout__.flush()
-        self.publish_pdb_state()
-        return super(SpyderPdb, self).postcmd(stop, line)
-
-    if PY2:
-        def break_here(self, frame):
-            """
-            Breakpoints don't work for files with non-ascii chars in Python 2
-
-            Fixes Issue 1484
-            """
-            from bdb import effective
-            filename = self.canonic(frame.f_code.co_filename)
-            try:
-                filename = unicode(filename, "utf-8")
-            except TypeError:
-                pass
-            if filename not in self.breaks:
-                return False
-            lineno = frame.f_lineno
-            if lineno not in self.breaks[filename]:
-                # The line itself has no breakpoint, but maybe the line is the
-                # first line of a function with breakpoint set by function name
-                lineno = frame.f_code.co_firstlineno
-                if lineno not in self.breaks[filename]:
-                    return False
-
-            # flag says ok to delete temp. bp
-            (bp, flag) = effective(filename, lineno, frame)
-            if bp:
-                self.currentbp = bp.number
-                if (flag and bp.temporary):
-                    self.do_clear(str(bp.number))
-                return True
-            else:
-                return False
+        return stop
 
     # --- Methods defined by us for Spyder integration
     def set_spyder_breakpoints(self, breakpoints):
@@ -802,82 +711,96 @@ class SpyderPdb(ipyPdb, object):  # Inherits `object` to call super() in PY2
                     # The file is not readable
                     pass
 
-        # Jump to first breakpoint.
-        # Fixes issue 2034
-        if self.starting:
+    breakpoints = property(fset=set_spyder_breakpoints)
+
+    def should_do_continue(self):
+        """
+        Jump to first breakpoint if needed
+
+        Fixes spyder-ide/spyder#2034
+        """
+        if not self.starting:
             # Only run this after a Pdb session is created
-            self.starting = False
+            return False
+        self.starting = False
 
-            # Get all breakpoints for the file we're going to debug
-            frame = self.curframe
-            if not frame:
-                # We are not debugging, return. Solves #10290
-                return
-            lineno = frame.f_lineno
-            breaks = self.get_file_breaks(frame.f_code.co_filename)
+        if not self.continue_if_has_breakpoints:
+            # This was disabled
+            return False
 
-            # Do 'continue' if the first breakpoint is *not* placed
-            # where the debugger is going to land.
-            # Fixes issue 4681
-            if self.pdb_stop_first_line:
-                do_continue = (
-                    self.continue_if_has_breakpoints
-                    and breaks
-                    and lineno < breaks[0])
-            else:
-                # The breakpoint could be in another file.
-                do_continue = (
-                    self.continue_if_has_breakpoints
-                    and not (breaks and lineno >= breaks[0]))
+        # Get all breakpoints for the file we're going to debug
+        frame = self.curframe
+        if not frame:
+            # We are not debugging, return. Solves spyder-ide/spyder#10290
+            return False
 
-            if do_continue:
-                try:
-                    if self.pdb_use_exclamation_mark:
-                        cont_cmd = '!continue'
-                    else:
-                        cont_cmd = 'continue'
-                    frontend_request(blocking=False).pdb_execute(cont_cmd)
-                except (CommError, TimeoutError):
-                    logger.debug(
-                        "Could not send a Pdb continue call to the frontend.")
+        lineno = frame.f_lineno
+        breaks = self.get_file_breaks(frame.f_code.co_filename)
 
-    def publish_pdb_state(self):
+        # Do 'continue' if the first breakpoint is *not* placed
+        # where the debugger is going to land.
+        # Fixes spyder-ide/spyder#4681
+        if self.pdb_stop_first_line:
+            return breaks and lineno < breaks[0]
+
+        # The breakpoint could be in another file.
+        return not (breaks and lineno >= breaks[0])
+
+    def get_pdb_state(self):
         """
         Send debugger state (frame position) to the frontend.
 
         The state is only sent if it has changed since the last update.
         """
+        state = get_ipython().kernel.get_state()
+        if self.starting and self.should_do_continue():
+            if self.pdb_use_exclamation_mark:
+                cont_cmd = '!continue'
+            else:
+                cont_cmd = 'continue'
+            state['request_pdb_input'] = cont_cmd
 
         frame = self.curframe
         if frame is None:
             self._previous_step = None
-            return
+            return state
 
         # Get filename and line number of the current frame
         fname = self.canonic(frame.f_code.co_filename)
-        if PY2:
-            try:
-                fname = unicode(fname, "utf-8")
-            except TypeError:
-                pass
         if fname == self.mainpyfile and self.remote_filename is not None:
             fname = self.remote_filename
         lineno = frame.f_lineno
 
         if self._previous_step == (fname, lineno):
-            return
+            # Do not update state if not needed
+            return state
 
         # Set step of the current frame (if any)
         step = {}
         self._previous_step = None
-        if isinstance(fname, basestring) and isinstance(lineno, int):
+        if isinstance(fname, str) and isinstance(lineno, int):
             step = dict(fname=fname, lineno=lineno)
             self._previous_step = (fname, lineno)
 
-        try:
-            frontend_request(blocking=False).pdb_state(dict(step=step))
-        except (CommError, TimeoutError):
-            logger.debug("Could not send Pdb state to the frontend.")
+        state['step'] = step
+
+        if self.pdb_publish_stack:
+            # Publish Pdb stack so we can update the Debugger plugin on Spyder
+            pdb_stack = traceback.StackSummary.extract(self.stack)
+            pdb_index = self.curindex
+
+            skip_hidden = getattr(self, 'skip_hidden', False)
+
+            if skip_hidden:
+                # Filter out the hidden frames
+                hidden = self.hidden_frames(self.stack)
+                pdb_stack = [f for f, h in zip(pdb_stack, hidden) if not h]
+                # Adjust the index
+                pdb_index -= sum(hidden[:pdb_index])
+
+            state['stack'] = (pdb_stack, pdb_index)
+
+        return state
 
     def run(self, cmd, globals=None, locals=None):
         """Debug a statement executed via the exec() function.
@@ -929,12 +852,11 @@ class SpyderPdb(ipyPdb, object):  # Inherits `object` to call super() in PY2
         # Reset parent debugger
         sys.settrace(self.trace_dispatch)
         self.lastcmd = debugger.lastcmd
-        get_ipython().pdb_session = self
 
-        # Reset _previous_step so that publish_pdb_state() called from within
-        # postcmd() notifies Spyder about a changed debugger position. The reset
-        # is required because the recursive debugger might change the position,
-        # but the parent debugger (self) is not aware of this.
+        # Reset _previous_step so that get_pdb_state() notifies Spyder about
+        # a changed debugger position. The reset is required because the
+        # recursive debugger might change the position, but the parent debugger
+        # (self) is not aware of this.
         self._previous_step = None
 
     def set_remote_filename(self, filename):

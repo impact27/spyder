@@ -17,6 +17,7 @@ class Plugins:
     Breakpoints = 'breakpoints'
     Completions = 'completions'
     Console = 'internal_console'
+    Debugger = 'debugger'
     Editor = 'editor'
     Explorer = 'explorer'
     Find = 'find_in_files'
@@ -46,6 +47,7 @@ class Plugins:
 class DockablePlugins:
     Breakpoints = 'breakpoints'
     Console = 'internal_console'
+    Debugger = 'debugger'
     Editor = 'editor'
     Explorer = 'explorer'
     Find = 'find_in_files'

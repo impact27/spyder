@@ -253,7 +253,7 @@ if 'dev' in __version__:
                         if req.split(">")[0] not in reqs_to_loosen]
     install_requires.append('python-lsp-server[all]>=1.7.1,<1.9.0')
     install_requires.append('qtconsole>=5.4.0,<5.6.0')
-    install_requires.append('spyder-kernels>=2.4.2,<2.6.0')
+    install_requires.append('spyder-kernels>=2.4.2,<3.1.0')
 
 extras_require = {
     'test:platform_system == "Windows"': ['pywin32'],
@@ -283,6 +283,7 @@ spyder_plugins_entry_points = [
     'application = spyder.plugins.application.plugin:Application',
     'breakpoints = spyder.plugins.breakpoints.plugin:Breakpoints',
     'completions = spyder.plugins.completion.plugin:CompletionPlugin',
+    'debugger = spyder.plugins.debugger.plugin:Debugger',
     'editor = spyder.plugins.editor.plugin:Editor',
     'explorer = spyder.plugins.explorer.plugin:Explorer',
     'find_in_files = spyder.plugins.findinfiles.plugin:FindInFiles',

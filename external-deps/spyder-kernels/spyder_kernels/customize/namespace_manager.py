@@ -11,8 +11,6 @@ import sys
 
 from IPython.core.getipython import get_ipython
 
-from spyder_kernels.py3compat import PY2
-
 
 def new_main_mod(filename, modname):
     """
@@ -28,12 +26,12 @@ def new_main_mod(filename, modname):
     main_mod.__file__ = filename
     # It seems pydoc (and perhaps others) needs any module instance to
     # implement a __nonzero__ method
-    main_mod.__nonzero__ = lambda : True
+    main_mod.__nonzero__ = lambda: True
 
     return main_mod
 
 
-class NamespaceManager(object):
+class NamespaceManager:
     """
     Get a namespace and set __file__ to filename for this namespace.
 
@@ -86,7 +84,6 @@ class NamespaceManager(object):
             self.ns_globals, self.ns_locals)
 
         if (self._file_code is not None
-                and not PY2
                 and isinstance(self._file_code, bytes)):
             try:
                 self._file_code = self._file_code.decode()

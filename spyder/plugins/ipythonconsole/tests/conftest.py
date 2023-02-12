@@ -21,8 +21,10 @@ import pytest
 from qtpy.QtWidgets import QMainWindow
 
 # Local imports
+from spyder.api.plugins import Plugins
 from spyder.app.cli_options import get_options
 from spyder.config.manager import CONF
+from spyder.plugins.debugger.plugin import Debugger
 from spyder.plugins.help.utils.sphinxify import CSS_PATH
 from spyder.plugins.ipythonconsole.plugin import IPythonConsole
 from spyder.plugins.ipythonconsole.utils.style import create_style_class
@@ -34,7 +36,6 @@ from spyder.utils.conda import get_list_conda_envs
 # =============================================================================
 SHELL_TIMEOUT = 20000
 TEMP_DIRECTORY = tempfile.gettempdir()
-NON_ASCII_DIR = osp.join(TEMP_DIRECTORY, u'測試', u'اختبار')
 NEW_DIR = 'new_workingdir'
 
 
@@ -133,20 +134,6 @@ def ipyconsole(qtbot, request, tmpdir):
         )
         configuration.set('workingdir', 'startup/use_fixed_directory', False)
 
-    # Test the console with a non-ascii temp dir
-    non_ascii_dir = request.node.get_closest_marker('non_ascii_dir')
-    if non_ascii_dir:
-        test_dir = NON_ASCII_DIR
-    else:
-        test_dir = ''
-
-    # Instruct the console to not use a stderr file
-    no_stderr_file = request.node.get_closest_marker('no_stderr_file')
-    if no_stderr_file:
-        test_no_stderr = 'True'
-    else:
-        test_no_stderr = ''
-
     # Use the automatic backend if requested
     auto_backend = request.node.get_closest_marker('auto_backend')
     if auto_backend:
@@ -195,10 +182,20 @@ def ipyconsole(qtbot, request, tmpdir):
 
     # Create the console and a new client and set environment
     os.environ['IPYCONSOLE_TESTING'] = 'True'
-    os.environ['IPYCONSOLE_TEST_DIR'] = test_dir
-    os.environ['IPYCONSOLE_TEST_NO_STDERR'] = test_no_stderr
     window = MainWindowMock()
     console = IPythonConsole(parent=window, configuration=configuration)
+
+    # connect to a debugger plugin
+    debugger = Debugger(parent=window, configuration=configuration)
+
+    def get_plugin(name):
+        if name == Plugins.IPythonConsole:
+            return console
+        return None
+
+    debugger.get_plugin = get_plugin
+    debugger.on_ipython_console_available()
+    console.on_initialize()
     console._register()
     console.create_new_client(is_pylab=is_pylab,
                               is_sympy=is_sympy,
@@ -206,7 +203,7 @@ def ipyconsole(qtbot, request, tmpdir):
     window.setCentralWidget(console.get_widget())
 
     # Set exclamation mark to True
-    configuration.set('ipython_console', 'pdb_use_exclamation_mark', True)
+    configuration.set('debugger', 'pdb_use_exclamation_mark', True)
 
     if os.name == 'nt':
         qtbot.addWidget(window)
@@ -223,8 +220,19 @@ def ipyconsole(qtbot, request, tmpdir):
     qtbot.waitUntil(lambda: console.get_current_shellwidget() is not None)
     shell = console.get_current_shellwidget()
     try:
-        qtbot.waitUntil(lambda: shell._prompt_html is not None,
-                        timeout=SHELL_TIMEOUT)
+        if test_environment_interpreter:
+            # conda version is not always up to date, so a version warning
+            # might be displayed, so shell.spyder_kernel_ready will not be True
+            qtbot.waitUntil(
+                lambda: shell._prompt_html is not None,
+                timeout=SHELL_TIMEOUT)
+        else:
+            qtbot.waitUntil(
+                lambda: (
+                    shell.spyder_kernel_ready
+                    and shell._prompt_html is not None
+                ),
+                timeout=SHELL_TIMEOUT)
     except Exception:
         # Print content of shellwidget and close window
         print(console.get_current_shellwidget(
@@ -264,8 +272,6 @@ def ipyconsole(qtbot, request, tmpdir):
     # Close
     console.on_close()
     os.environ.pop('IPYCONSOLE_TESTING')
-    os.environ.pop('IPYCONSOLE_TEST_DIR')
-    os.environ.pop('IPYCONSOLE_TEST_NO_STDERR')
 
     if os.name == 'nt' or known_leak:
         # Do not test for leaks
@@ -299,8 +305,8 @@ def ipyconsole(qtbot, request, tmpdir):
         show_diff(init_threads, threads, "thread")
         sys.stderr.write("Running Threads stacks:\n")
         now_thread_ids = [t.ident for t in now_threads]
-        for threadId, frame in sys._current_frames().items():
-            if threadId in now_thread_ids:
+        for thread_id, frame in sys._current_frames().items():
+            if thread_id in now_thread_ids:
                 sys.stderr.write("\nThread " + str(threads) + ":\n")
                 traceback.print_stack(frame)
         raise

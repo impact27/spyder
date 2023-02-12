@@ -31,8 +31,6 @@ from spyder.config.manager import CONF
 from spyder.widgets.collectionseditor import (
     RemoteCollectionsEditorTableView, CollectionsEditorTableView,
     CollectionsModel, CollectionsEditor, LARGE_NROWS, ROWS_TO_LOAD, natsort)
-from spyder.plugins.variableexplorer.widgets.namespacebrowser import (
-    NamespacesBrowserFinder)
 from spyder.plugins.variableexplorer.widgets.tests.test_dataframeeditor import \
     generate_pandas_indexes
 from spyder.py3compat import to_text_string
@@ -245,27 +243,25 @@ def test_filter_rows(qtbot):
              'numpy_type': 'Unknown'}}
     )
     editor = RemoteCollectionsEditorTableView(None, data)
-    editor.finder = NamespacesBrowserFinder(
-        editor, editor.set_regex)
     qtbot.addWidget(editor)
 
     # Initially two rows
     assert editor.model.rowCount() == 2
 
     # Match two rows by name
-    editor.finder.setText("df")
+    editor.do_find("df")
     assert editor.model.rowCount() == 2
 
     # Match two rows by type
-    editor.finder.setText("DataFrame")
+    editor.do_find("DataFrame")
     assert editor.model.rowCount() == 2
 
     # Only one match
-    editor.finder.setText("dfb")
+    editor.do_find("dfb")
     assert editor.model.rowCount() == 1
 
     # No match
-    editor.finder.setText("dfbc")
+    editor.do_find("dfbc")
     assert editor.model.rowCount() == 0
 
 
@@ -277,7 +273,7 @@ def test_create_dataframeeditor_with_correct_format(qtbot):
     editor.delegate.createEditor(None, None, editor.model.index(0, 3))
     dataframe_editor = next(iter(editor.delegate._editors.values()))['editor']
     qtbot.addWidget(dataframe_editor)
-    dataframe_editor.dataModel._format == '%10d'
+    dataframe_editor.dataModel._format_spec == '10d'
 
 
 def test_collectionsmodel_with_two_ints():

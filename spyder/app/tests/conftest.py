@@ -23,11 +23,14 @@ import psutil
 import pytest
 
 # Spyder imports
+from spyder.api.plugins import Plugins
 from spyder.app import start
 from spyder.config.base import get_home_dir, running_in_ci
 from spyder.config.manager import CONF
+from spyder.plugins.debugger.api import DebuggerToolbarActions
 from spyder.plugins.ipythonconsole.utils.kernelspec import SpyderKernelSpec
 from spyder.plugins.projects.api import EmptyProject
+from spyder.plugins.toolbar.api import ApplicationToolbars
 from spyder.utils import encoding
 from spyder.utils.environ import (get_user_env, set_user_env,
                                   amend_user_shell_init)
@@ -223,7 +226,8 @@ def preferences_dialog_helper(qtbot, main_window, section):
     # Wait until the window is fully up
     shell = main_window.ipyconsole.get_current_shellwidget()
     qtbot.waitUntil(
-        lambda: shell._prompt_html is not None, timeout=SHELL_TIMEOUT)
+        lambda: shell.spyder_kernel_ready and shell._prompt_html is not None,
+        timeout=SHELL_TIMEOUT)
 
     main_window.show_preferences()
     preferences = main_window.preferences
@@ -295,7 +299,7 @@ def main_window(request, tmpdir, qtbot):
     CONF.set('ipython_console', 'pylab/inline/figure_format', 0)
 
     # Set exclamation mark to True
-    CONF.set('ipython_console', 'pdb_use_exclamation_mark', True)
+    CONF.set('debugger', 'pdb_use_exclamation_mark', True)
 
     # Check if we need to use introspection in a given test
     # (it's faster and less memory consuming not to use it!)
@@ -368,6 +372,15 @@ def main_window(request, tmpdir, qtbot):
             # Create a new console to ensure new config is loaded
             # even if the same mainwindow instance is reused
             window.ipyconsole.create_new_client(give_focus=True)
+
+    # Add a handle to the "Debug file" button to access it quickly because
+    # it's used a lot.
+    toolbar = window.get_plugin(Plugins.Toolbar)
+    debug_toolbar = toolbar.get_application_toolbar(ApplicationToolbars.Debug)
+    debug_action = window.debugger.get_action(
+        DebuggerToolbarActions.DebugCurrentFile)
+    debug_button = debug_toolbar.widgetForAction(debug_action)
+    window.debug_button = debug_button
 
     QApplication.processEvents()
 
@@ -499,8 +512,8 @@ def main_window(request, tmpdir, qtbot):
                     show_diff(init_threads, threads, "thread")
                     sys.stderr.write("Running Threads stacks:\n")
                     now_thread_ids = [t.ident for t in now_threads]
-                    for threadId, frame in sys._current_frames().items():
-                        if threadId in now_thread_ids:
+                    for thread_id, frame in sys._current_frames().items():
+                        if thread_id in now_thread_ids:
                             sys.stderr.write(
                                 "\nThread " + str(threads) + ":\n")
                             traceback.print_stack(frame)

@@ -22,6 +22,9 @@ if [ "$USE_CONDA" = "true" ]; then
 
     # To check our manifest and coverage
     micromamba install check-manifest -c conda-forge codecov -q -y
+
+    # Install PyZMQ 24 to avoid hangs
+    micromamba install -c conda-forge pyzmq=24
 else
     # Update pip and setuptools
     python -m pip install -U pip setuptools wheel build
@@ -43,6 +46,9 @@ else
         pip uninstall pyqt5 pyqt5-qt5 pyqt5-sip pyqtwebengine pyqtwebengine-qt5 -q -y
         pip install pyqt5==5.12.* pyqtwebengine==5.12.*
     fi
+
+    # Install PyZMQ 24 to avoid hangs
+    pip install pyzmq==24.0.1
 fi
 
 # Install subrepos from source
@@ -68,7 +74,15 @@ conda create -n jedi-test-env -q -y python=3.9 flask
 conda list -n jedi-test-env
 
 # Create environment to test conda env activation before launching a kernel
-conda create -n spytest-ž -q -y -c conda-forge python=3.9 spyder-kernels
+conda create -n spytest-ž -q -y -c conda-forge python=3.9
+
+# `conda run` fails on Windows without a clear reason
+if [ "$OS" = "win" ]; then
+    /c/Miniconda/envs/spytest-ž/python -m pip install git+https://github.com/spyder-ide/spyder-kernels.git@master
+else
+    conda run -n spytest-ž python -m pip install git+https://github.com/spyder-ide/spyder-kernels.git@master
+fi
+
 conda list -n spytest-ž
 
 # Install pyenv on Linux systems

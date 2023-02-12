@@ -180,8 +180,7 @@ class EditorStack(QWidget):
     ending_long_process = Signal(str)
     redirect_stdio = Signal(bool)
     exec_in_extconsole = Signal(str, bool)
-    run_cell_in_ipyclient = Signal(str, object, str, bool, bool)
-    debug_cell_in_ipyclient = Signal(str, object, str, bool, bool)
+    sig_run_cell_in_ipyclient = Signal(str, object, str, bool, str, bool)
     update_plugin_title = Signal()
     editor_focus_changed = Signal()
     zoom_in = Signal()
@@ -197,7 +196,6 @@ class EditorStack(QWidget):
     sig_update_code_analysis_actions = Signal()
     refresh_file_dependent_actions = Signal()
     refresh_save_all_action = Signal()
-    sig_breakpoints_saved = Signal()
     text_changed_at = Signal(str, int)
     current_file_changed = Signal(str, int, int, int)
     plugin_load = Signal((str,), ())
@@ -217,6 +215,36 @@ class EditorStack(QWidget):
     sig_save_bookmark = Signal(int)
     sig_load_bookmark = Signal(int)
     sig_save_bookmarks = Signal(str, str)
+
+    sig_codeeditor_created = Signal(object)
+    """
+    This signal is emitted when a codeeditor is created.
+
+    Parameters
+    ----------
+    codeeditor: spyder.plugins.editor.widgets.codeeditor.CodeEditor
+        The codeeditor.
+    """
+
+    sig_codeeditor_deleted = Signal(object)
+    """
+    This signal is emitted when a codeeditor is closed.
+
+    Parameters
+    ----------
+    codeeditor: spyder.plugins.editor.widgets.codeeditor.CodeEditor
+        The codeeditor.
+    """
+
+    sig_codeeditor_changed = Signal(object)
+    """
+    This signal is emitted when the current codeeditor changes.
+
+    Parameters
+    ----------
+    codeeditor: spyder.plugins.editor.widgets.codeeditor.CodeEditor
+        The codeeditor.
+    """
 
     sig_help_requested = Signal(dict)
     """
@@ -434,18 +462,6 @@ class EditorStack(QWidget):
             name='Inspect current object',
             parent=self)
 
-        set_breakpoint = CONF.config_shortcut(
-            self.set_or_clear_breakpoint,
-            context='Editor',
-            name='Breakpoint',
-            parent=self)
-
-        set_cond_breakpoint = CONF.config_shortcut(
-            self.set_or_edit_conditional_breakpoint,
-            context='Editor',
-            name='Conditional breakpoint',
-            parent=self)
-
         gotoline = CONF.config_shortcut(
             self.go_to_line,
             context='Editor',
@@ -590,12 +606,6 @@ class EditorStack(QWidget):
             name="run cell",
             parent=self)
 
-        debug_cell = CONF.config_shortcut(
-            self.debug_cell,
-            context="Editor",
-            name="debug cell",
-            parent=self)
-
         run_cell_and_advance = CONF.config_shortcut(
             self.run_cell_and_advance,
             context="Editor",
@@ -657,12 +667,12 @@ class EditorStack(QWidget):
             parent=self)
 
         # Return configurable ones
-        return [inspect, set_breakpoint, set_cond_breakpoint, gotoline, tab,
+        return [inspect, gotoline, tab,
                 tabshift, run_selection, run_to_line, run_from_line, new_file,
                 open_file, save_file, save_all, save_as, close_all,
                 prev_edit_pos, prev_cursor, next_cursor, zoom_in_1, zoom_in_2,
                 zoom_out, zoom_reset, close_file_1, close_file_2, run_cell,
-                debug_cell, run_cell_and_advance,
+                run_cell_and_advance,
                 go_to_next_cell, go_to_previous_cell, re_run_last_cell,
                 prev_warning, next_warning, split_vertically,
                 split_horizontally, close_split,
@@ -870,18 +880,6 @@ class EditorStack(QWidget):
         else:
             if self.data:
                 self.get_current_editor().exec_gotolinedialog()
-
-    def set_or_clear_breakpoint(self):
-        """Set/clear breakpoint"""
-        if self.data:
-            editor = self.get_current_editor()
-            editor.debugger.toogle_breakpoint()
-
-    def set_or_edit_conditional_breakpoint(self):
-        """Set conditional breakpoint"""
-        if self.data:
-            editor = self.get_current_editor()
-            editor.debugger.toogle_breakpoint(edit_condition=True)
 
     def set_bookmark(self, slot_num):
         """Bookmark current position to given slot."""
@@ -1366,8 +1364,6 @@ class EditorStack(QWidget):
             self.sig_open_file.emit(options)
 
             # Update panels
-            finfo.editor.set_debug_panel(
-                show_debug_panel=True, language=language)
             finfo.editor.cleanup_code_analysis()
             finfo.editor.cleanup_folding()
         else:
@@ -1663,6 +1659,7 @@ class EditorStack(QWidget):
             # by long all the time is not working on some 32bit platforms.
             # See spyder-ide/spyder#1094 and spyder-ide/spyder#1098.
             self.sig_close_file.emit(str(id(self)), filename)
+            self.sig_codeeditor_deleted.emit(editor)
 
             self.opened_files_list_changed.emit()
             self.sig_update_code_analysis_actions.emit()
@@ -2205,6 +2202,7 @@ class EditorStack(QWidget):
 
         self.stack_history.refresh()
         self.stack_history.remove_and_append(index)
+        self.sig_codeeditor_changed.emit(editor)
 
         # Needed to avoid an error generated after moving/renaming
         # files outside Spyder while in debug mode.
@@ -2548,11 +2546,9 @@ class EditorStack(QWidget):
         editor.sig_run_to_line.connect(self.run_to_line)
         editor.sig_run_from_line.connect(self.run_from_line)
         editor.sig_run_cell.connect(self.run_cell)
-        editor.sig_debug_cell.connect(self.debug_cell)
         editor.sig_run_cell_and_advance.connect(self.run_cell_and_advance)
         editor.sig_re_run_last_cell.connect(self.re_run_last_cell)
         editor.sig_new_file.connect(self.sig_new_file)
-        editor.sig_breakpoints_saved.connect(self.sig_breakpoints_saved)
         editor.sig_process_code_analysis.connect(
             self.sig_update_code_analysis_actions)
         editor.sig_refresh_formatting.connect(self.sig_refresh_formatting)
@@ -2665,6 +2661,7 @@ class EditorStack(QWidget):
             'codeeditor': editor
         }
         self.sig_open_file.emit(options)
+        self.sig_codeeditor_created.emit(editor)
         if self.get_stack_index() == 0:
             self.current_changed(0)
 
@@ -2876,7 +2873,7 @@ class EditorStack(QWidget):
         """
         self._run_lines_cursor(direction='down')
 
-    def run_selection(self):
+    def run_selection(self, prefix=None):
         """
         Run selected text or current line in console.
 
@@ -2888,21 +2885,27 @@ class EditorStack(QWidget):
         cursor there. If cursor is on last line and that line is empty, then do
         not move cursor.
         """
+        if prefix is None:
+            prefix = ''
+
         text = self.get_current_editor().get_selection_as_executable_code()
         if text:
-            self.exec_in_extconsole.emit(text.rstrip(), self.focus_to_editor)
+            self.exec_in_extconsole.emit(
+                prefix + text.rstrip(), self.focus_to_editor)
             return
+
         editor = self.get_current_editor()
         line = editor.get_current_line()
         text = line.lstrip()
         if text:
-            self.exec_in_extconsole.emit(text, self.focus_to_editor)
+            self.exec_in_extconsole.emit(
+                prefix + text, self.focus_to_editor)
         if editor.is_cursor_on_last_line() and text:
             editor.append(editor.get_line_separator())
         if self.focus_to_editor:
             editor.move_cursor_to_next('line', 'down')
 
-    def run_cell(self, debug=False):
+    def run_cell(self, method=None):
         """Run current cell."""
         text, block = self.get_current_editor().get_cell_as_executable_code()
         finfo = self.get_current_finfo()
@@ -2910,15 +2913,11 @@ class EditorStack(QWidget):
         name = cell_name(block)
         filename = finfo.filename
 
-        self._run_cell_text(text, editor, (filename, name), debug)
+        self._run_cell_text(text, editor, (filename, name), method)
 
-    def debug_cell(self):
-        """Debug current cell."""
-        self.run_cell(debug=True)
-
-    def run_cell_and_advance(self):
+    def run_cell_and_advance(self, method=None):
         """Run current cell and advance to the next one"""
-        self.run_cell()
+        self.run_cell(method)
         self.advance_cell()
 
     def advance_cell(self, reverse=False):
@@ -2950,7 +2949,7 @@ class EditorStack(QWidget):
 
         self._run_cell_text(text, editor, (filename, cell_name))
 
-    def _run_cell_text(self, text, editor, cell_id, debug=False):
+    def _run_cell_text(self, text, editor, cell_id, method=None):
         """Run cell code in the console.
 
         Cell code is run in the console by copying it to the console if
@@ -2966,12 +2965,15 @@ class EditorStack(QWidget):
         """
         (filename, cell_name) = cell_id
         if editor.is_python_or_ipython():
-            args = (text, cell_name, filename, self.run_cell_copy,
-                    self.focus_to_editor)
-            if debug:
-                self.debug_cell_in_ipyclient.emit(*args)
-            else:
-                self.run_cell_in_ipyclient.emit(*args)
+            if method is None:
+                method = "runcell"
+            # self.run_cell_copy only works for runcell
+            run_cell_copy = self.run_cell_copy
+            if method != "runcell":
+                run_cell_copy = False
+            self.sig_run_cell_in_ipyclient.emit(
+                text, cell_name, filename, run_cell_copy, method,
+                self.focus_to_editor)
 
     #  ------ Drag and drop
     def dragEnterEvent(self, event):

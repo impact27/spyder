@@ -20,7 +20,6 @@ import pytest
 # Local imports
 from spyder_kernels.utils.dochelpers import (getargtxt, getdoc, getobj,
                                              isdefined)
-from spyder_kernels.py3compat import PY2
 
 
 class Test(object):
@@ -28,8 +27,7 @@ class Test(object):
         pass
 
 
-@pytest.mark.skipif(
-    PY2 or os.name == 'nt', reason="Only works on Linux and Mac")
+@pytest.mark.skipif(os.name == 'nt', reason="Only works on Linux and Mac")
 @pytest.mark.skipif(
     sys.platform == 'darwin' and sys.version_info[:2] == (3, 8),
     reason="Fails on Mac with Python 3.8")

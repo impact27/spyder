@@ -28,8 +28,7 @@ from pkg_resources import parse_version
 import psutil
 
 # Local imports
-from spyder.config.base import (running_under_pytest, get_home_dir,
-                                running_in_mac_app)
+from spyder.config.base import running_under_pytest, get_home_dir
 from spyder.utils import encoding
 from spyder.utils.misc import get_python_executable
 
@@ -82,42 +81,32 @@ def is_program_installed(basename):
     """
     home = get_home_dir()
     req_paths = []
-    if sys.platform == 'darwin':
-        if basename.endswith('.app') and osp.exists(basename):
-            return basename
+    if (
+        sys.platform == 'darwin'
+        and basename.endswith('.app')
+        and osp.exists(basename)
+    ):
+        return basename
 
+    if os.name == 'posix':
         pyenv = [
+            osp.join(home, '.pyenv', 'bin'),
             osp.join('/usr', 'local', 'bin'),
-            osp.join(home, '.pyenv', 'bin')
         ]
 
-        # Prioritize Anaconda before Miniconda; local before global.
-        a = [osp.join(home, 'opt'), '/opt']
-        b = ['anaconda', 'miniconda', 'anaconda3', 'miniconda3']
-        conda = [osp.join(*p, 'condabin') for p in itertools.product(a, b)]
-
-        req_paths.extend(pyenv + conda)
-
-    elif sys.platform.startswith('linux'):
-        pyenv = [
-            osp.join('/usr', 'local', 'bin'),
-            osp.join(home, '.pyenv', 'bin')
-        ]
-
-        a = [home, '/opt']
-        b = ['anaconda', 'miniconda', 'anaconda3', 'miniconda3']
-        conda = [osp.join(*p, 'condabin') for p in itertools.product(a, b)]
-
-        req_paths.extend(pyenv + conda)
-
-    elif os.name == 'nt':
+        a = [home, osp.join(home, 'opt'), '/opt']
+        b = ['mambaforge', 'miniforge3', 'miniforge',
+             'miniconda3', 'anaconda3', 'miniconda', 'anaconda']
+    else:
         pyenv = [osp.join(home, '.pyenv', 'pyenv-win', 'bin')]
 
-        a = [home, 'C:\\', osp.join('C:\\', 'ProgramData')]
-        b = ['Anaconda', 'Miniconda', 'Anaconda3', 'Miniconda3']
-        conda = [osp.join(*p, 'condabin') for p in itertools.product(a, b)]
+        a = [home, osp.join(home, 'AppData', 'Local'),
+             'C:\\', osp.join('C:\\', 'ProgramData')]
+        b = ['Mambaforge', 'Miniforge3', 'Miniforge',
+             'Miniconda3', 'Anaconda3', 'Miniconda', 'Anaconda']
 
-        req_paths.extend(pyenv + conda)
+    conda = [osp.join(*p, 'condabin') for p in itertools.product(a, b)]
+    req_paths.extend(pyenv + conda)
 
     for path in os.environ['PATH'].split(os.pathsep) + req_paths:
         abspath = osp.join(path, basename)
@@ -788,8 +777,6 @@ def run_python_script_in_terminal(fname, wdir, args, interact, debug,
                                         delete=False)
         if wdir:
             f.write('cd "{}"\n'.format(wdir))
-        if running_in_mac_app(executable):
-            f.write(f'export PYTHONHOME={os.environ["PYTHONHOME"]}\n')
         if pypath is not None:
             f.write(f'export PYTHONPATH={pypath}\n')
         f.write(' '.join([executable] + p_args))
@@ -807,6 +794,29 @@ def run_python_script_in_terminal(fname, wdir, args, interact, debug,
         thread.start()
     else:
         raise NotImplementedError
+
+
+def check_version_range(module_version, version_range):
+    """
+    Check if a module's version lies in `version_range`.
+    """
+    if ';' in version_range:
+        versions = version_range.split(';')
+    else:
+        versions = [version_range]
+
+    output = True
+    for _ver in versions:
+        match = re.search(r'[0-9]', _ver)
+        assert match is not None, "Invalid version number"
+        symb = _ver[:match.start()]
+        if not symb:
+            symb = '='
+        assert symb in ('>=', '>', '=', '<', '<='),\
+            "Invalid version condition '%s'" % symb
+        ver = _ver[match.start():]
+        output = output and check_version(module_version, ver, symb)
+    return output
 
 
 def check_version(actver, version, cmp_op):
@@ -935,23 +945,7 @@ def is_module_installed(module_name, version=None, interpreter=None,
     if version is None:
         return True
     else:
-        if ';' in version:
-            versions = version.split(';')
-        else:
-            versions = [version]
-
-        output = True
-        for _ver in versions:
-            match = re.search(r'[0-9]', _ver)
-            assert match is not None, "Invalid version number"
-            symb = _ver[:match.start()]
-            if not symb:
-                symb = '='
-            assert symb in ('>=', '>', '=', '<', '<='),\
-                "Invalid version condition '%s'" % symb
-            ver = _ver[match.start():]
-            output = output and check_version(module_version, ver, symb)
-        return output
+        return check_version_range(module_version, version)
 
 
 def is_python_interpreter_valid_name(filename):

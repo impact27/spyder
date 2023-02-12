@@ -47,7 +47,10 @@ def editor_plugin(qtbot, monkeypatch):
                 return Mock()
 
         def get_plugin(self, plugin_name, error=True):
-            if plugin_name in [Plugins.IPythonConsole, Plugins.Projects]:
+            if plugin_name in [
+                    Plugins.IPythonConsole,
+                    Plugins.Projects,
+                    Plugins.Debugger]:
                 return None
             else:
                 return Mock()

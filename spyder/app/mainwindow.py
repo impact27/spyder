@@ -143,9 +143,6 @@ class MainWindow(QMainWindow, SpyderConfigurationAccessor):
     sig_moved = Signal("QMoveEvent")
     sig_layout_setup_ready = Signal(object)  # Related to default layouts
 
-    # To be removed in Spyder 6
-    sig_pythonpath_changed = Signal(object, object)
-
     sig_window_state_changed = Signal(object)
     """
     This signal is emitted when the window state has changed (for instance,
@@ -220,6 +217,7 @@ class MainWindow(QMainWindow, SpyderConfigurationAccessor):
             'maininterpreter': Plugins.MainInterpreter,
             'outlineexplorer': Plugins.OutlineExplorer,
             'variableexplorer': Plugins.VariableExplorer,
+            'debugger': Plugins.Debugger,
             'ipyconsole': Plugins.IPythonConsole,
             'workingdirectory': Plugins.WorkingDirectory,
             'projects': Plugins.Projects,
@@ -253,16 +251,12 @@ class MainWindow(QMainWindow, SpyderConfigurationAccessor):
         self.source_menu_actions = []
         self.run_menu = None
         self.run_menu_actions = []
-        self.debug_menu = None
-        self.debug_menu_actions = []
 
         # TODO: Move to corresponding Plugins
         self.file_toolbar = None
         self.file_toolbar_actions = []
         self.run_toolbar = None
         self.run_toolbar_actions = []
-        self.debug_toolbar = None
-        self.debug_toolbar_actions = []
 
         self.menus = []
 
@@ -774,10 +768,6 @@ class MainWindow(QMainWindow, SpyderConfigurationAccessor):
                     PLUGIN_REGISTRY.register_plugin(self, PluginClass,
                                                     external=False)
 
-        # To be removed in Spyder 6
-        ppm = self.get_plugin(Plugins.PythonpathManager)
-        ppm.sig_pythonpath_changed.connect(self.sig_pythonpath_changed)
-
         # Instantiate internal Spyder 4 plugins
         for plugin_name in internal_plugins:
             if plugin_name in enabled_plugins:
@@ -842,7 +832,6 @@ class MainWindow(QMainWindow, SpyderConfigurationAccessor):
         self.source_menu = mainmenu.get_application_menu("source_menu")
         self.source_menu.aboutToShow.connect(self.update_source_menu)
         self.run_menu = mainmenu.get_application_menu("run_menu")
-        self.debug_menu = mainmenu.get_application_menu("debug_menu")
 
         # Switcher shortcuts
         self.file_switcher_action = create_action(
@@ -918,7 +907,6 @@ class MainWindow(QMainWindow, SpyderConfigurationAccessor):
         toolbar = self.toolbar
         self.file_toolbar = toolbar.get_application_toolbar("file_toolbar")
         self.run_toolbar = toolbar.get_application_toolbar("run_toolbar")
-        self.debug_toolbar = toolbar.get_application_toolbar("debug_toolbar")
 
         self.set_splash(_("Setting up main window..."))
 
@@ -928,7 +916,6 @@ class MainWindow(QMainWindow, SpyderConfigurationAccessor):
         add_actions(self.search_menu, self.search_menu_actions)
         add_actions(self.source_menu, self.source_menu_actions)
         add_actions(self.run_menu, self.run_menu_actions)
-        add_actions(self.debug_menu, self.debug_menu_actions)
 
         # Emitting the signal notifying plugins that main window menu and
         # toolbar actions are all defined:
@@ -1552,18 +1539,6 @@ class MainWindow(QMainWindow, SpyderConfigurationAccessor):
                   'please use <code>spyder -p "{fname}"</code>.')
                 .format(fpath=osp.normpath(fpath), fname=fname)
             )
-
-    def get_spyder_pythonpath(self):
-        """
-        This is here to provide compatibility for plugins that make use of the
-        Pythonpath managed by Spyder.
-
-        Notes
-        -----
-        This  method is going to be removed in Spyder 6.
-        """
-        ppm = self.get_plugin(Plugins.PythonpathManager)
-        return ppm.get_spyder_pythonpath()
 
     # ---- Preferences
     # -------------------------------------------------------------------------
