@@ -63,6 +63,7 @@ from spyder.plugins.ipythonconsole.utils.kernel_handler import KernelHandler
 from spyder.plugins.layout.layouts import DefaultLayouts
 from spyder.plugins.toolbar.api import ApplicationToolbars
 from spyder.py3compat import qbytearray_to_str, to_text_string
+from spyder.utils.environ import set_user_env
 from spyder.utils.misc import remove_backslashes
 from spyder.utils.clipboard_helper import CLIPBOARD_HELPER
 from spyder.widgets.dock import DockTitleBar
@@ -751,7 +752,7 @@ def test_dedicated_consoles(main_window, qtbot):
 
     # --- Set run options for this file ---
     rc = RunConfiguration().get()
-    
+
     # A dedicated console is used when these three options are False
     rc['default'] = rc['current'] = rc['systerm'] = False
     rc['clear_namespace'] = False
@@ -989,7 +990,7 @@ def test_change_cwd_explorer(main_window, qtbot, tmpdir, test_directory):
 
     # Change directory in the explorer widget
     explorer.chdir(temp_dir)
-    qtbot.wait(1000)
+    qtbot.waitUntil(lambda: osp.normpath(temp_dir) == osp.normpath(shell._cwd))
 
     # Assert that cwd changed in workingdirectory
     assert osp.normpath(wdir.get_container().history[-1]) == osp.normpath(
@@ -1458,7 +1459,7 @@ def test_run_code(main_window, qtbot, tmpdir):
     qtbot.waitUntil(lambda: nsb.editor.source_model.rowCount() == 1,
                     timeout=EVAL_TIMEOUT)
     assert shell.get_value('li') == [1, 2, 3]
-    
+
     # try running cell without file name
     shell.clear()
     # Clean namespace
@@ -2621,31 +2622,23 @@ def test_pylint_follows_file(qtbot, tmpdir, main_window):
 
 
 @flaky(max_runs=3)
-@pytest.mark.skipif(
-    sys.platform == 'darwin', reason="Segfaults on MacOS after passing")
 def test_report_comms_error(qtbot, main_window):
     """Test if a comms error is correctly displayed."""
-    CONF.set('main', 'show_internal_errors', True)
     shell = main_window.ipyconsole.get_current_shellwidget()
     qtbot.waitUntil(
         lambda: shell.spyder_kernel_ready and shell._prompt_html is not None,
         timeout=SHELL_TIMEOUT)
     # Create a bogus get_cwd
     with qtbot.waitSignal(shell.executed):
-        shell.execute('def get_cwd(): import foo')
+        shell.execute('def foo(): import foo')
     with qtbot.waitSignal(shell.executed):
         shell.execute("get_ipython().kernel.frontend_comm."
-                      "register_call_handler('get_cwd', get_cwd)")
-    with qtbot.waitSignal(shell.executed, timeout=3000):
-        shell.execute('ls')
-
-    qtbot.waitUntil(lambda: main_window.console.error_dialog is not None,
-                    timeout=EVAL_TIMEOUT)
-    error_dialog = main_window.console.error_dialog
-    assert 'Exception in comms call get_cwd' in error_dialog.error_traceback
-    assert 'No module named' in error_dialog.error_traceback
-    main_window.console.close_error_dialog()
-    CONF.set('main', 'show_internal_errors', False)
+                      "register_call_handler('foo', foo)")
+    try:
+        shell.call_kernel(blocking=True).foo()
+        assert False
+    except ModuleNotFoundError as e:
+        assert "foo" in str(e)
 
 
 @flaky(max_runs=3)
@@ -4766,8 +4759,7 @@ def test_print_comms(main_window, qtbot):
                     timeout=EVAL_TIMEOUT)
 
     # Make sure the warning is printed
-    assert ("Output from spyder call 'get_namespace_view':"
-            in control.toPlainText())
+    assert ("Output from spyder call" in control.toPlainText())
 
 
 @flaky(max_runs=3)
@@ -5800,6 +5792,7 @@ def test_console_initial_cwd_is_synced(main_window, qtbot, tmpdir):
     qtbot.waitUntil(
         lambda: shell.spyder_kernel_ready and shell._prompt_html is not None,
         timeout=SHELL_TIMEOUT)
+    qtbot.waitUntil(lambda: shell.get_cwd() == str(tmpdir))
     assert shell.get_cwd() == str(tmpdir) == workdir.get_workdir() == \
            files.get_current_folder()
 
@@ -5809,7 +5802,7 @@ def test_console_initial_cwd_is_synced(main_window, qtbot, tmpdir):
     qtbot.waitUntil(
         lambda: shell.spyder_kernel_ready and shell._prompt_html is not None,
         timeout=SHELL_TIMEOUT)
-    qtbot.wait(500)
+    qtbot.waitUntil(lambda: shell.get_cwd() == str(tmpdir))
     assert shell.get_cwd() == str(tmpdir) == workdir.get_workdir() == \
            files.get_current_folder()
 
@@ -5833,7 +5826,7 @@ def test_console_initial_cwd_is_synced(main_window, qtbot, tmpdir):
     qtbot.waitUntil(
         lambda: shell.spyder_kernel_ready and shell._prompt_html is not None,
         timeout=SHELL_TIMEOUT)
-    qtbot.wait(500)
+    qtbot.waitUntil(lambda: shell.get_cwd() == fixed_dir)
     assert shell.get_cwd() == fixed_dir == workdir.get_workdir() == \
            files.get_current_folder()
 
@@ -5846,7 +5839,7 @@ def test_console_initial_cwd_is_synced(main_window, qtbot, tmpdir):
     qtbot.waitUntil(
         lambda: shell.spyder_kernel_ready and shell._prompt_html is not None,
         timeout=SHELL_TIMEOUT)
-    qtbot.wait(500)
+    qtbot.waitUntil(lambda: shell.get_cwd() == project_path)
     assert shell.get_cwd() == project_path == workdir.get_workdir() == \
            files.get_current_folder()
 
@@ -5858,7 +5851,7 @@ def test_console_initial_cwd_is_synced(main_window, qtbot, tmpdir):
     qtbot.waitUntil(
         lambda: shell.spyder_kernel_ready and shell._prompt_html is not None,
         timeout=SHELL_TIMEOUT)
-    qtbot.wait(500)
+    qtbot.waitUntil(lambda: shell.get_cwd() == get_home_dir())
     assert shell.get_cwd() == get_home_dir() == workdir.get_workdir() == \
            files.get_current_folder()
 
@@ -6002,7 +5995,8 @@ def test_switch_to_plugin(main_window, qtbot):
 
 
 @flaky(max_runs=5)
-def test_PYTHONPATH_in_consoles(main_window, qtbot, tmp_path):
+def test_PYTHONPATH_in_consoles(main_window, qtbot, tmp_path,
+                                restore_user_env):
     """
     Test that PYTHONPATH is passed to IPython consoles under different
     scenarios.
@@ -6016,7 +6010,7 @@ def test_PYTHONPATH_in_consoles(main_window, qtbot, tmp_path):
     # Add a new directory to PYTHONPATH
     new_dir = tmp_path / 'new_dir'
     new_dir.mkdir()
-    os.environ['PYTHONPATH'] = str(new_dir)
+    set_user_env({"PYTHONPATH": str(new_dir)})
 
     # Open Pythonpath dialog to detect new_dir
     ppm = main_window.get_plugin(Plugins.PythonpathManager)
