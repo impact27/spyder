@@ -15,6 +15,7 @@
 import logging
 import os
 import os.path as osp
+from pathlib import Path
 import re
 import sys
 import time
@@ -2140,7 +2141,8 @@ class Editor(SpyderPluginWidget, SpyderConfigurationObserver):
             self.switch_to_plugin()
 
         def _convert(fname):
-            fname = osp.abspath(encoding.to_unicode_from_fs(fname))
+            fname = encoding.to_unicode_from_fs(fname)
+            fname = str(Path(fname).resolve())
             if os.name == 'nt' and len(fname) >= 2 and fname[1] == ':':
                 fname = fname[0].upper()+fname[1:]
             return fname
